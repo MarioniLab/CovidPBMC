@@ -1,0 +1,35 @@
+import pandas as pd
+import os
+
+#############################################################################
+# M.D. Morgan, K. Bach
+# COVID19 scRNA-seq pipeline 
+# This pipeline takes FASTQ files generated using the 10X Chromium platform, QCs, aligns and quant them 
+# using the STAR aligner, and internal barcode assignment using CellRanger. Cell barcodes representing 
+# bonafide cells are called outside of Cell Ranger using emptyDrops.
+# The final steps are single-cell QC, normalisation and report generation
+# Usage:
+#  snakemake --cluster 'bsub -q research-rh74 -M {cluster.memory} -R {cluster.resources} -n {cluster.nodes} -T 1500' --jobs=100
+#############################################################################
+configfile: "site_profile/configEBI.yaml"
+configfile: "config/config.yaml"
+
+
+BASE_DIR = "/hps/nobackup/research/marioni/covid19/"
+WKDIR = BASE_DIR
+
+workdir: WKDIR
+
+SAMPLES = [gx for gx in glob_wildcards("fastqs/{sample}.fastq.gz")][0]
+#print(SAMPLES)
+#############################################################################
+# Define a set of tasks to run locally
+############################################################################
+localrules: all
+
+#############################################################################
+# Input Rule
+#############################################################################
+rule all:
+	input: 
+		expand("fastqs/{sample}.r_1.fq.gz", sample=SAMPLES)

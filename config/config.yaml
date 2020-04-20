@@ -1,0 +1,13 @@
+# # Reference files
+
+base:
+        dir: "/hps/nobackup/research/marioni/covid19"
+        run: "TEST"
+ref_hg38_SarsCov2:
+	# the cellranger format file with human and Sars-CoV2 genome sequences and annotations
+        referenceFolder: ""
+
+params:
+        cellranger: 
+                #?
+
