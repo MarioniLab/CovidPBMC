@@ -1,0 +1,21 @@
+{
+    "__default__" :
+    {
+        "queue"     : "research-rh74",
+        "nCPUs"     : 12,
+        "threads"   : 12,
+        "memory"    : 4000,
+        "time"      : "04:50:00",
+        "resources" : "\"select[mem>4000] rusage[mem=4000]\"",
+        "name"      : "JOBNAME.{rule}.{wildcards}",
+        "output"    : "logs/{rule}.{wildcards}.out",
+        "error"     : "logs/{rule}.{wildcards}.err"
+    },
+    "ruleA":
+    {
+        "nCPUs"     : 4,
+        "threads"   : 12,
+        "memory"    : 96000,
+        "resources" : "\"select[mem>120000] rusage[mem=120000]\""
+    }
+}
