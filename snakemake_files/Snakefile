@@ -11,8 +11,8 @@ import os
 # Usage:
 #  snakemake --cluster 'bsub -q research-rh74 -M {cluster.memory} -R {cluster.resources} -n {cluster.nodes} -T 1500' --jobs=100
 #############################################################################
-configfile: "site_profile/configEBI.yaml"
-configfile: "config/config.yaml"
+configfile: "CovidPBMC/site_profile/configEBI.yaml"
+configfile: "CovidPBMC/config/config.yaml"
 
 
 BASE_DIR = "/hps/nobackup/research/marioni/covid19/"
