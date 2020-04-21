@@ -1,5 +1,6 @@
 import pandas as pd
 import os
+import re
 
 #############################################################################
 # M.D. Morgan, K. Bach
@@ -16,12 +17,22 @@ configfile: "CovidPBMC/config/config.yaml"
 
 
 BASE_DIR = "/hps/nobackup/research/marioni/covid19/"
-WKDIR = BASE_DIR
 
-workdir: WKDIR
+workdir: BASE_DIR
 
-SAMPLES = [gx for gx in glob_wildcards("fastqs/{sample}.fastq.gz")][0]
+## Make sure the the test samples are commented out for running genuine samples
+## Regex for the differnt filename components
+#FILE_REGEX = re.compile("(\w+)_(S[0-9]?)_(L[0-9]+)_([R|I][1|2])_00[0-9]")
+SAMPLES = [fx for fx in glob_wildcards("test_data/fastq/{sample}.fastq.gz")][0]
 #print(SAMPLES)
+CITE_REGEX = re.compile("(\w+)_(5gex|antibody)_(S[0-9]?)_(L[0-9]+)_([R|I][1|2])_00[0-9]")
+TCR_REGEX = re.compile("(\w+)_t_(S[0-9]?)_(L[0-9]+)_([R|I][1|2])_00[0-9]")
+BCR_REGEX = re.compile("(\w+)_b_(S[0-9]?)_(L[0-9]+)_([R|I][1|2])_00[0-9]")
+CITE_SAMPLES = [gx for gx in SAMPLES if CITE_REGEX.search(gx)]
+TCR_SAMPLES = [tx for tx in SAMPLES if TCR_REGEX.search(tx)]
+BCR_SAMPLES = [bx for bx in SAMPLES if BCR_REGEX.search(bx)]
+
+#print(CITE_SAMPLES)
 #############################################################################
 # Define a set of tasks to run locally
 ############################################################################
@@ -31,5 +42,58 @@ localrules: all
 # Input Rule
 #############################################################################
 rule all:
-	input: 
-		expand("fastqs/{sample}.r_1.fq.gz", sample=SAMPLES)
+     input: ["test_data/fastq/{filename}.fastq.gz".format(filename=CITE_REGEX.search(rx).group(0)) for rx in CITE_SAMPLES],
+            ["test_data/fastq/{filename}.fastq.gz".format(filename=TCR_REGEX.search(tx).group(0)) for tx in TCR_SAMPLES],
+            ["test_data/fastq/{filename}.fastq.gz".format(filename=BCR_REGEX.search(bx).group(0)) for bx in BCR_SAMPLES],
+            expand("cellranger_output/{sample}_CITE.test", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
+            expand("cellranger_output/{sample}_TCR.test", sample=[TCR_REGEX.search(to).group(1) for to in TCR_SAMPLES]),
+            expand("cellranger_output/{sample}_BCR.test", sample=[BCR_REGEX.search(bo).group(1) for bo in BCR_SAMPLES])
+	#expand("fastq/{sample}.fastq.gz", sample=SAMPLES)
+
+#############################################################################
+# Run GEX & ADT Cell Ranger
+#############################################################################
+rule run_CITE_cellranger:
+    """
+    Run CellRanger to process gene expression and Antibody libraries
+    """
+    input:
+        files=["test_data/fastq/{filename}.fastq.gz".format(filename=CITE_REGEX.search(rx).group(0)) for rx in CITE_SAMPLES]
+    params:
+        sampname=list(set(["{filename}".format(filename=CITE_REGEX.search(rx).group(1)) for rx in CITE_SAMPLES]))
+    output:
+        outs="cellranger_output/{sample}_CITE.test"
+    shell:
+        "for x in {params.sampname}; do echo $x >> {output}; done"
+
+#############################################################################
+# Run TCR Cell Ranger
+#############################################################################
+rule run_TCR_cellranger:
+    """
+    Run CellRanger to process TCR libraries
+    """
+    input:
+        files=["test_data/fastq/{filename}.fastq.gz".format(filename=TCR_REGEX.search(tx).group(0)) for tx in TCR_SAMPLES]
+    params:
+        sampname=list(set(["{filename}".format(filename=TCR_REGEX.search(rx).group(1)) for rx in TCR_SAMPLES]))
+    output:
+        outs="cellranger_output/{sample}_TCR.test"
+    shell:
+        "for x in {params.sampname}; do echo $x >> {output}; done"
+
+#############################################################################
+# Run BCR Cell Ranger
+#############################################################################
+rule run_BCR_cellranger:
+    """
+    Run CellRanger to process BCR libraries
+    """
+    input:
+        files=["test_data/fastq/{filename}.fastq.gz".format(filename=BCR_REGEX.search(bx).group(0)) for bx in BCR_SAMPLES] 
+    params:
+        sampname=list(set(["{filename}".format(filename=BCR_REGEX.search(rx).group(1)) for rx in BCR_SAMPLES]))
+    output:
+        outs="cellranger_output/{sample}_BCR.test"
+    shell:
+        "for x in {params.sampname}; do echo $x >> {output}; done"
