@@ -2,27 +2,32 @@ Bootstrap: docker
 From: ubuntu
 
 %help
+
 This Singularity container contains all the software necessary to reproduce the analysis of PBMCs from Covid19 patients.
 
 %files
+
     /home/karsten/Cambridge/CovidPBMC/singularity/InstallPackages.R /Install.R
     /home/karsten/Cambridge/CovidPBMC/singularity/ListOfPackages.txt /ListOfPackages.txt
     /home/karsten/Cambridge/CovidPBMC/singularity/cellranger-3.1.0.tar.gz /cellranger-3.1.0.tar.gz
 
 %post
+
+   #---- Libraries ----
+
    apt-get -y update
-   apt-get -y install git curl wget rsync
+   apt-get -y install git curl wget rsync make bzip2
 
    #tzdata without interactive mode otherwise it crashes
-   #set noninteractive installation
    export DEBIAN_FRONTEND=noninteractive
+
    #install tzdata package
    apt-get install -y tzdata
 
    #needed for R package install
    apt-get -y install libcurl4-openssl-dev libxml2-dev libssl-dev libudunits2-dev
 
-   #for r markdown documents
+   #for Rmd documents
    apt-get -y install pandoc imagemagick pandoc-citeproc
 
    #R installation requires fortran compiler
@@ -34,12 +39,15 @@ This Singularity container contains all the software necessary to reproduce the 
    #for h5
    apt-get -y install libhdf5-dev libhdf5-cpp-100 libhdf5-100
 
+
+   #---- R Installation -----
+
    #ubuntu 18.04 specific issue for apt-get build-dep, this is required to build R from source
    sed -Ei 's/^# deb-src /deb-src /' /etc/apt/sources.list
    apt-get update
    apt-get -y build-dep r-base r-base-dev
 
-   #install R 
+   # Download and Install 3-6.3
    cd /
    wget https://cran.r-project.org/src/base/R-3/R-3.6.3.tar.gz
    tar -xzf R-3.6.3.tar.gz
@@ -48,17 +56,46 @@ This Singularity container contains all the software necessary to reproduce the 
    ./configure && make && make install
    cd /
 
-   #install CellRanger
-   tar -xzf cellranger-3.1.0.tar.gz
-
    #Set R_LIBS 
    echo "R_LIBS=/usr/local/lib/R/library" > /usr/local/lib/R/etc/Renviron.site
-
 
    #Install R packages
    Rscript /Install.R
 
+   #install CellRanger
+   tar -xzf cellranger-3.1.0.tar.gz
+
+
+   #---- Python -----
+
+   # This is a fix to install conda, see https://github.com/sylabs/singularity/issues/315
+   # multiprocess.Semaphore() requires write access to the shared memory directory
+   chmod 777 /dev/shm 
+
+   # conda 
+   curl -sSL https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -o /tmp/miniconda.sh \
+   && bash /tmp/miniconda.sh -bfp /miniconda \
+   && conda install -y python=3\ \
+   && conda update conda
+   PATH="/miniconda/bin:$PATH"
+
+   # Install conda packages
+   conda install numpy scipy cython numba matplotlib scikit-learn h5py seaborn statsmodels
+   pip install -U cellSNP
+   pip install -U vireoSNP
+
+   #---- Other ----
+
+   mkdir /utils
+   cd /utils
+   wget https://github.com/10XGenomics/vartrix/releases/download/v1.1.16/vartrix_linux -O vartrix
+   chmod 777 vartrix
+   wget https://github.com/ekg/freebayes/releases/download/v1.3.1/freebayes-v1.3.1 -O freebayes
+   chmod 777 freebayes
+
 %environment
    #Setup Path
    PATH="/cellranger-3.1.0/:$PATH"
+   PATH="/miniconda/bin:$PATH"
+   PATH="$PATH:/utils/"
    export PATH

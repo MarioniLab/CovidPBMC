@@ -11,6 +11,9 @@ This folder contains the recipe and helper files to build the singularity image.
 The image contains the following software
 - R 3.6.3 with Bioconductor Version 3.10 and all packages specified in ListOfPackages.txt
 - CellRanger 3.1.0
+- Vireo and cellSNP
+- Vartrix
+- Freebayes
 
 ## Building the image
 
