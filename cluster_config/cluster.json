@@ -3,19 +3,33 @@
     {
         "queue"     : "research-rh74",
         "nCPUs"     : 12,
-        "threads"   : 12,
+        "threads"   : 12000,
         "memory"    : 4000,
-        "time"      : "04:50:00",
+        "time"      : "23:59:59",
         "resources" : "\"select[mem>4000] rusage[mem=4000]\"",
         "name"      : "JOBNAME.{rule}.{wildcards}",
         "output"    : "logs/{rule}.{wildcards}.out",
         "error"     : "logs/{rule}.{wildcards}.err"
     },
-    "ruleA":
+    "run_CITE_cellranger":
     {
-        "nCPUs"     : 4,
-        "threads"   : 12,
-        "memory"    : 96000,
-        "resources" : "\"select[mem>120000] rusage[mem=120000]\""
+        "nCPUs"     : 24,
+        "threads"   : 15000,
+        "memory"    : 60000,
+        "resources" : "\"select[mem>6000] rusage[mem=4000]\""
+    },
+    "run_TCR_cellranger":
+    {
+        "nCPUs"      : 24,
+        "threads"    : 15000,
+        "memory"     : 60000,
+        "resources"  : "\"select[mem>6000] rusage[mem=4000]\""
+    },
+    "run_BCR_cellranger":
+    {
+        "nCPUs"      : 24,
+        "threads"    : 15000,
+        "memory"     : 60000,
+        "resources"  : "\"select[mem>6000] rusage[mem=4000]\""
     }
 }

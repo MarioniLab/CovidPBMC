@@ -4,8 +4,10 @@ base:
     run: "TEST"
 hg38_SarsCov2:
     # the cellranger format file with human and Sars-CoV2 genome sequences and annotations
-    referenceFolder: "genome_refs/hg38_SarsCov2"
-
+    referenceFolder: "/hps/nobackup/research/marioni/covid19/genome_refs/hg38_SarsCov2"
+hg38_vdj:
+    # standard 10X Genomics pre-built Ig and TCR loci
+    referenceFolder: "/hps/nobackup/research/marioni/covid19/genome_refs/refdata-cellranger-vdj-GRCh38-alts-ensembl-3.1.0"
 params:
-        cellranger: "" #?
+    featureReference: "/hps/nobackup/research/marioni/covid19/test_data/ref_files/vdj_v1_hs_pbmc2_5gex_protein_feature_ref.csv"
 
