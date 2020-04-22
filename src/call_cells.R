@@ -2,42 +2,22 @@
 # This scripts takes the following command line arguments
 
 # ---- Parsing ----
+library(optparse)
 
-# Uncomment after Singularity image with optparse is up
-# library(optparse)
-# 
-# parser <- OptionParser()
-# parser <- add_option(parser, c("-i", "--input"), type="character", 
-#                  help="Path to the raw matrix.mtx.gz")
-# parser <- add_option(parser, c("-o", "--out"), type="character", 
-#                  help="Path to output file")
-# parser <- add_option(parser, c("-f", "--fdrthreshold"), type="double", default=0.001, 
-#                 help="FDR threshold to call cells [default %default]",
-#                 metavar="number")
-# parser <- add_option(parser, c("-u", "--umithreshold"), type="integer", default=100, 
-#                 help="UMI limit to call cells [default %default]",
-#                 metavar="number")
-# parser <- add_option(parser, c("-l", "--logs"), type="character", 
-#                  help="Path to log folder")
-# parser <- add_option(parser, c("-s", "--sample"), type="character", 
-#                  help="Sample Name")
-# opt <- parse_args(parser)
-
-#RM after Singularity with optparse is up
-##########
-opt <- commandArgs(trailingOnly=TRUE)
-names(opt) <- c("dummy",opt[-length(opt)])
-names(opt) <- gsub("--","",names(opt))
-keep.opt <- grep("input|out|fdr|umi|logs|sample",names(opt))
-opt <- opt[keep.opt]
-opt <- as.list(opt)
-###########
-
-## FDR threshold
-fdr.thresh <- as.numeric(opt$fdrthreshold)
-
-## Lower UMI Limit
-limit <- as.numeric(opt$umithreshold)
+parser <- OptionParser()
+parser <- add_option(parser, c("-i", "--input"), type="character", 
+		     help="Path to the raw matrix.mtx.gz")
+parser <- add_option(parser, c("-o", "--out"), type="character", 
+		     help="Path to output file")
+parser <- add_option(parser, c("-f", "--fdrthreshold"), type="double", default=0.001, 
+		     help="FDR threshold to call cells [default %default]",
+		     metavar="number")
+parser <- add_option(parser, c("-u", "--umithreshold"), type="integer", default=100, 
+		     help="UMI limit to call cells [default %default]",
+		     metavar="number")
+parser <- add_option(parser, c("-l", "--logs"), type="character", 
+		     help="Path to pdf for plots")
+opt <- parse_args(parser)
 
 # ---- Load Data ----
 library(DropletUtils)
@@ -63,19 +43,19 @@ emptyDrops_seed <- function(...,rnd.seed=42) {
 
 # Test for empty droplets
 niter <- 10000
-e.out <- emptyDrops_seed(counts(sce), lower=limit, niters=niter)
+e.out <- emptyDrops_seed(counts(sce), lower=opt$umithreshold, niters=niter)
 
 # Are any cells above the thresold due to limited precision of estimated p-values
-tbl <- table(Sig=e.out$FDR <= fdr.thresh, Limited=e.out$Limited)
+tbl <- table(Sig=e.out$FDR <= opt$fdrthreshold, Limited=e.out$Limited)
 is.lim <- tbl[1,2] > 0
 
 # If true increase niter by one order of magnitude and recompute
 # This might need to be adopted if there are still limited pvalues
 if (is.lim) {
     n.iter <- niter * 10
-    e.out <- emptyDrops_seed(counts(sce), lower=limit, niters=niter)
+    e.out <- emptyDrops_seed(counts(sce), lower=opt$umithreshold, niters=niter)
     # Throw warning if unsignificant cells still have limited p-values
-    tbl <- table(Sig=e.out$FDR <= fdr.thresh, Limited=e.out$Limited)
+    tbl <- table(Sig=e.out$FDR <= opt$fdrthreshold, Limited=e.out$Limited)
     still.lim <- tbl[1,2] > 0
     if (still.lim) {
 	warning("Limited P-Values above FDR threshold, some cells might be wrongly labelled as ambient")
@@ -87,10 +67,10 @@ if (is.lim) {
 # P-Value Histogram
 
 # Run emptyDrops with ambient true for P-Val Histogram
-all.out <- emptyDrops_seed(counts(sce), lower=limit, test.ambient=TRUE, niter=niter)
+all.out <- emptyDrops_seed(counts(sce), lower=opt$umithreshold, test.ambient=TRUE, niter=niter)
 
 # Plot
-fplot <- data.frame("X"=all.out$PValue[all.out$Total <= limit & all.out$Total > 0])
+fplot <- data.frame("X"=all.out$PValue[all.out$Total <= opt$umithreshold & all.out$Total > 0])
 pval.hist <- ggplot(fplot, aes(x=X)) +
     geom_histogram(bins=20) +
     xlab("P-Value") +
@@ -119,10 +99,7 @@ bcplt <- ggplot(fplot, aes(x=rank, y=total)) +
 
 
 # Combine the two plots
-ttle <- ggdraw() + 
-  draw_label(paste0("Sample ", opt$sample), fontface='bold', x=0, hjust=0) 
 plots <- plot_grid(bcplt, pval.hist, nrow=1)
-pout <- plot_grid(ttle, plots, ncol=1, rel_heights=c(0.1, 1))
 
 
 # ---- Save ----
@@ -132,5 +109,4 @@ out <- data.frame("Barcode"=sce$Barcode[which(e.out$FDR<=0.001)])
 write.csv(out, file=opt$out, row.names=FALSE)
 
 # QCplots as pdf
-pout.name <- file.path(opt$logs, paste0(opt$sample,"_empyDropQC.pdf"))
-ggsave(filename=pout.name, plot=pout, width=10, height=5)
+ggsave(filename=opt$logs, plot=plots, width=10, height=5)
