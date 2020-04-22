@@ -70,6 +70,8 @@ This Singularity container contains all the software necessary to reproduce the 
 
    # This is a fix to install conda, see https://github.com/sylabs/singularity/issues/315
    # multiprocess.Semaphore() requires write access to the shared memory directory
+   rm /dev/shm
+   mkdir /dev/shm
    chmod 777 /dev/shm 
 
    # conda 

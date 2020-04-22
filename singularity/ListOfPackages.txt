@@ -12,7 +12,6 @@ DropletUtils
 DT
 edgeR
 FNN
-ggnet
 ggplot2
 ggrepel
 ggrastr
@@ -24,6 +23,7 @@ Matrix
 MASS
 limSolve
 mgcv
+optparse
 pheatmap
 plyr
 randomForest
