@@ -3,6 +3,9 @@ base:
     dir: "/hps/nobackup/research/marioni/covid19"
     run: "TEST"
 
+singularity:
+    img: "/hps/nobackup/research/marioni/covid19/singularity/CovidPBMC.sif"
+
 hg38_SarsCov2:
     # the cellranger format file with human and Sars-CoV2 genome sequences and annotations
     referenceFolder: "/hps/nobackup/research/marioni/covid19/genome_refs/hg38_SarsCov2"
@@ -16,7 +19,8 @@ params:
 
 emptyDrops:
     umi_threshold: 100
-    emptydrops_rscript: "/hps/nobackup/research/marioni/covid19/CovidPBMC/src/"
+    fdr_threshold: 0.001
+    emptydrops_rscript: "/hps/nobackup/research/marioni/covid19/CovidPBMC/src/call_cells.R"
 
 genotyper:
     ref_vcf: "/hps/nobackup/research/marioni/covid19/" # input a reference VCF, e.g. 1K Genomes

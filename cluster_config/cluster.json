@@ -31,5 +31,12 @@
         "threads"    : 15000,
         "memory"     : 60000,
         "resources"  : "\"select[mem>6000] rusage[mem=4000]\""
+    },
+    "run_emptyDrops":
+    {
+        "nCPUs"      : 12,
+        "threads"    : 12000,
+        "memory"     : 48000,
+        "resources"  : "\"select[mem>4800] rusage[mem=4000]\""
     }
 }
