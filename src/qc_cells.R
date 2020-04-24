@@ -92,24 +92,13 @@ gex.v.ab <- ggplot(fplot, aes(x=sum.expr, y=sum.ab, color=is.lib.fail)) +
 
 # Mitochondiral counts
 # Get genes on MT
-# Uncomment once you update singularity to include EnsDb
-# library(EnsDb.Hsapiens.v86)
-# location <- mapIds(EnsDb.Hsapiens.v86, keys=rownames(sce), 
-#     column="SEQNAME", keytype="GENEID")
-# is.mito <- location=="MT"
-# mitogenes <- names(location)[is.mito]
-# mitogenes <- mitogenes[!is.na(mitogenes)]
+library(EnsDb.Hsapiens.v86)
+location <- mapIds(EnsDb.Hsapiens.v86, keys=rownames(sce), 
+		   column="SEQNAME", keytype="GENEID")
+is.mito <- location=="MT"
+mitogenes <- names(location)[is.mito]
+mitogenes <- mitogenes[!is.na(mitogenes)]
 
-# RM once you update singularity
-#########
-mitogenes <- c("ENSG00000198888","ENSG00000198763",
-		"ENSG00000198804","ENSG00000198712",
-		"ENSG00000228253","ENSG00000198899",
-		"ENSG00000198938","ENSG00000198840",
-		"ENSG00000212907","ENSG00000198886",
-		"ENSG00000198786","ENSG00000198695",
-		"ENSG00000198727")
-###########
 
 qc$mtsum <- colSums(counts(sce)[mitogenes,])
 qc$mtrel <- qc$mtsum / qc$sum
