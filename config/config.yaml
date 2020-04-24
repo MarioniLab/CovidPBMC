@@ -32,6 +32,7 @@ QC:
     mt_thresh: 2 # this is a scalar for how many times the MAD should be treated as outliers
     umi_thresh: 1000 # the minimum number of detected UMIs per cell to keep
     sparsity: 0.99 # the percentage of 0's to tolerate per single-cell (sparsity)
+    qc_rscript: "/hps/nobackup/research/marioni/covid19/CovidPBMC/src/qc_cells.R"
 
 Norm:
     gene_sparse: 0.99 # the percentages of 0's to tolerate per gene prior to size factor estimation

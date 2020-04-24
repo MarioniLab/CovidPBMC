@@ -54,6 +54,7 @@ rule all:
             expand(BASE_DIR + "cellranger_output/{sample}_BCR", sample=[BCR_REGEX.search(bo).group(1) for bo in BCR_SAMPLES]),
             expand(BASE_DIR + "quant.dir/{sample}_cells.txt", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "reports/{sample}_emptyDrops.pdf", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
+            expand(BASE_DIR + "reports/{sample}_QC.pdf", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "genotypes/{sample}.vcf", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])
 	#expand("fastq/{sample}.fastq.gz", sample=SAMPLES)
 
@@ -185,11 +186,13 @@ rule run_singlecell_qc:
     params:
         mt_thresh=config['QC']['mt_thresh'],
         umi_thresh=config['QC']['umi_thresh'],
-        sparse_thresh=config['QC']['sparsity']
+        sparse_thresh=config['QC']['sparsity'],
+        qc_rscript=config['QC']['qc_rscript']
     output:
-        barcodes=BASE_DIR + "QC/{sample}_barcode-whitelist.txt"
+        barcodes=BASE_DIR + "QC/{sample}_barcode-whitelist.txt",
+        plots=BASE_DIR + "reports/{sample}_QC.pdf"
     shell:
-        "singularity exec {config[singularity][img]} R CMD qc_script {input} {output} {params}"
+        "singularity exec {config[singularity][img]} Rscript {params.qc_rscript} --matrix {input.matrix} --barcodes {input.called_cells} --sparsitythreshold {params.sparse_thresh} --umithreshold {params.umi_thresh} --mtthreshold {params.mt_thresh} --plots {output.plots} --out {output.barcodes}"
 
 #############################################################################
 # Single-cell normalisation with deconvolution size factors
