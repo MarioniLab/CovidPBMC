@@ -11,6 +11,7 @@ dplyr
 DropletUtils
 DT
 edgeR
+EnsDb.Hsapiens.v86
 FNN
 ggplot2
 ggrepel
