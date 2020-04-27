@@ -37,7 +37,7 @@ library(ggrepel)
 theme_set(theme_cowplot())
 
 # Read in called cell barcodes
-cells <- read.csv(opt$barcodes,stringsAsFactors=FALSE)$Barcode
+cells <- read.csv(opt$barcodes,stringsAsFactors=FALSE,header=FALSE)[,1]
 # Read in raw counts
 fldr <- dirname(opt$matrix)
 sce <- read10xCounts(fldr,col.names=TRUE)
@@ -169,7 +169,7 @@ pout <- plot_grid(ttle, plots, ncol=1, rel_heights=c(0.1, 1))
 # --- Save ----
 # Barcodes
 out <- data.frame("Barcode"=colnames(sce)[keep])
-write.csv(x=out,file=opt$out,row.names=FALSE)
+write.table(out, file=opt$out, row.names=FALSE,col.names=FALSE, sep=",")
 
 #QC Plots
 ggsave(filename=opt$plots,plot=pout,width=12,height=12)
