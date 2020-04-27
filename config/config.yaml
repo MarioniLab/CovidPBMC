@@ -23,7 +23,9 @@ emptyDrops:
     emptydrops_rscript: "/hps/nobackup/research/marioni/covid19/CovidPBMC/src/call_cells.R"
 
 genotyper:
-    ref_vcf: "/hps/nobackup/research/marioni/covid19/" # input a reference VCF, e.g. 1K Genomes
+    ref_vcf: "/hps/nobackup/research/marioni/covid19/genotypes/genomeProject/genome1K.phase3.SNP_AF5e2.chr1toX.hg38.vcf" # input a reference VCF, e.g. 1K Genomes
+    min_MAF: 0.1
+    min_Count: 20
 
 demux:
     filters: ""

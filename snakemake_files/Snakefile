@@ -146,14 +146,16 @@ rule run_scGenotyping:
     Genotyping single-cells from scRNA-sequencing reads
     """
     input:
-        bam=[]
+        bam=BASE_DIR + "cellranger_output/{sample}_CITE/outs/possorted_genome_bam.bam",
+        barcodes=BASE_DIR + "quant.dir/{sample}_cells.txt"
     params:
-        plugin=[],
-        hg38_vcf=config['genotyper']['ref_vcf']
+        hg38_vcf=config['genotyper']['ref_vcf'],
+	min_MAF=config['genotyper']['min_MAF'],
+	min_Count=config['genotyper']['min_Count']
     output:
         vcf=BASE_DIR + "genotypes/{sample}.vcf"
     shell:
-        "singularity exec {config[singularity][img]} genotyper {input} {params} {output}"
+        "singularity exec {config[singularity][img]} cellSNP -s {input.bam} -b {input.barcodes} -R {params.hg38_vcf} -p 20 --minMAF {params.min_MAF} --minCOUNT {params.min_Count} -o {output.vcf}"
 
 #############################################################################
 # Run single-cell de-multiplexing by genotype
