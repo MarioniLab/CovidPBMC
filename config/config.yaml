@@ -38,3 +38,4 @@ QC:
 
 Norm:
     gene_sparse: 0.99 # the percentages of 0's to tolerate per gene prior to size factor estimation
+    norm_rscript: "/hps/nobackup/research/marioni/covid19/CovidPBMC/src/norm_data.R"
