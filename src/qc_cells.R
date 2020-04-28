@@ -36,19 +36,24 @@ library(cowplot)
 library(ggrepel)
 theme_set(theme_cowplot())
 
+message("Reading single-cell data")
 # Read in called cell barcodes
 cells <- read.csv(opt$barcodes,stringsAsFactors=FALSE,header=FALSE)[,1]
 # Read in raw counts
 fldr <- dirname(opt$matrix)
 sce <- read10xCounts(fldr,col.names=TRUE)
+
+message("Subseting data to valid called cells")
 # Subset to called cells
 sce <- sce[,cells]
 
 # ---- QC plots ----
 # compute QC stats
+message("Calculating QC metrics")
 qc <- data.frame(perCellQCMetrics(sce))
 
 # Anything related to library size
+message(paste0("Removing sparse cells with > ", opt$sparsitythreshold, " zeros"))
 gdthreshold <- (1-opt$sparsitythreshold)*nrow(sce)
 qc$is.lib.fail <- qc$sum < opt$umithreshold | qc$detected < gdthreshold
 
@@ -73,6 +78,7 @@ det.trend <- ggplot(qc, aes(x=sum, y=detected, color=is.lib.fail)) +
     ylab("# features") +
     ggtitle("Detection Tredn")
 
+message("Plotting GEX vs. Ab counts")
 # Droplets with only GEX or Ab counts?
 is.gex <- rowData(sce)$Type == "Gene Expression"
 sum.expr <- colSums(counts(sce)[is.gex,])
@@ -80,6 +86,10 @@ sum.ab <- colSums(counts(sce)[!is.gex,])
 fplot <- data.frame("GEXLib"=sum.expr,
 		    "ABLib"=sum.ab,
 		    "is.lib.fail"=qc$is.lib.fail)
+print(table(rowData(sce)$Type))
+print(sum(sum.ab))
+
+# can't plot on a log axis if all values are 0!
 gex.v.ab <- ggplot(fplot, aes(x=sum.expr, y=sum.ab, color=is.lib.fail)) +
     geom_point() +
     scale_x_log10() +
@@ -169,12 +179,12 @@ pout <- plot_grid(ttle, plots, ncol=1, rel_heights=c(0.1, 1))
 # --- Save ----
 # Barcodes
 out <- data.frame("Barcode"=colnames(sce)[keep])
-write.table(out, file=opt$out, row.names=FALSE,col.names=FALSE, sep=",")
+write.table(out, file=opt$out, row.names=FALSE,col.names=FALSE, sep=",", quote=FALSE)
 
-#QC Plots
-ggsave(filename=opt$plots,plot=pout,width=12,height=12)
+#QC Plots - how many plots are there?
+ggsave(filename=opt$plots, plot=pout, width=12, height=12)
 
 #Statistics
 if (!is.null(opt$logs)) {
-    write.csv(x=qc.stats,file=opt$logs,row.names=FALSE)
+    write.csv(x=qc.stats,file=opt$logs,row.names=FALSE, quote=FALSE)
 }

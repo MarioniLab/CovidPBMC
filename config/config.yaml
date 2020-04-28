@@ -15,7 +15,7 @@ hg38_vdj:
     referenceFolder: "/hps/nobackup/research/marioni/covid19/genome_refs/refdata-cellranger-vdj-GRCh38-alts-ensembl-3.1.0"
 
 params:
-    featureReference: "/hps/nobackup/research/marioni/covid19/test_data/ref_files/vdj_v1_hs_pbmc2_5gex_protein_feature_ref.csv"
+    featureReference: "/hps/nobackup/research/marioni/covid19/test_data/ref_files/vdj_v1_hs_pbmc2_5gex_protein_feature_ref.csv" # assumes this is the same across experiments
 
 emptyDrops:
     umi_threshold: 100
@@ -37,5 +37,9 @@ QC:
     qc_rscript: "/hps/nobackup/research/marioni/covid19/CovidPBMC/src/qc_cells.R"
 
 Norm:
-    gene_sparse: 0.99 # the percentages of 0's to tolerate per gene prior to size factor estimation
+    gene_sparse: 0.95 # the percentages of 0's to tolerate per gene prior to size factor estimation
     norm_rscript: "/hps/nobackup/research/marioni/covid19/CovidPBMC/src/norm_data.R"
+    qc_flag: "--outputqc"
+
+FinalCheck:
+    permission_script: "/hps/nobackup/research/marioni/covid19/CovidPBMC/src/check_permissions.sh"
