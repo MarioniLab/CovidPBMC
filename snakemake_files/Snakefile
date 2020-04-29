@@ -10,7 +10,6 @@ import re
 # bonafide cells are called outside of Cell Ranger using emptyDrops.
 # The final steps are single-cell QC, normalisation and report generation
 # Usage:
-#  snakemake --cluster 'bsub -q research-rh74 -M {cluster.memory} -R {cluster.resources} -n {cluster.nodes} -T 1500' --jobs=100
 # nohup nice -19 snakemake -s CovidPBMC/snakemake_files/Snakefile --cluster "bsub -q research-rh74 -M {cluster.memory} -R {cluster.resources} -n {cluster.nCPUs} -T {cluster.threads} 
 #                        -J {cluster.name} -e {cluster.error} -o {cluster.output}" --cluster-config CovidPBMC/cluster_config/cluster.json --jobs=100 --latency-wait=250 --verbose --rerun-incomplete -rp&
 #############################################################################
@@ -52,7 +51,7 @@ rule all:
             expand(BASE_DIR + "reports/{sample}_emptyDrops.pdf", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "reports/{sample}_QC.pdf", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             BASE_DIR + "SCE/Covid_SCE.RDS",
-            expand(BASE_DIR + "genotypes/{sample}.vcf", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])
+            expand(BASE_DIR + "genotypes/{sample}.vcf.gz", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])
 
 #############################################################################
 # Run GEX & ADT Cell Ranger
@@ -152,7 +151,7 @@ rule run_scGenotyping:
 	min_MAF=config['genotyper']['min_MAF'],
 	min_Count=config['genotyper']['min_Count']
     output:
-        vcf=BASE_DIR + "genotypes/{sample}.vcf"
+        vcf=BASE_DIR + "genotypes/{sample}.vcf.gz"
     shell:
         "singularity exec {config[singularity][img]} cellSNP -s {input.bam} -b {input.barcodes} -R {params.hg38_vcf} -p 20 --minMAF {params.min_MAF} --minCOUNT {params.min_Count} -o {output.vcf}"
 
@@ -164,7 +163,7 @@ rule demultiplex_cells:
     De-multiplex single-cells from genetically distinct donors
     """
     input:
-        sc_vcf=[BASE_DIR + "genotypes/{sample}.vcf"],
+        sc_vcf=[BASE_DIR + "genotypes/{sample}.vcf.gz"],
         barcodes=[]
     params:
         filters=config['demux']['filters'],
@@ -204,21 +203,24 @@ rule normalise_gex:
     This rule aggregates across samples.
     """
     input:
-        counts_matrices=",".join(expand(BASE_DIR + "cellranger_output/{sample}_CITE/outs/raw_feature_bc_matrix/matrix.mtx.gz", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]))),
-        cell_barcodes=",".join(expand(BASE_DIR + "quant.dir/{sample}_cells.txt", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]))),
-        barcode_whitelist=",".join(expand(BASE_DIR + "QC/{sample}_barcode-whitelist.txt", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])))
+        counts_matrices=expand(BASE_DIR + "cellranger_output/{sample}_CITE/outs/raw_feature_bc_matrix/matrix.mtx.gz", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])),
+        cell_barcodes=expand(BASE_DIR + "quant.dir/{sample}_cells.txt", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])),
+        barcode_whitelist=expand(BASE_DIR + "QC/{sample}_barcode-whitelist.txt", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]))
     params:
         gene_sparse=config['Norm']['gene_sparse'],
         norm_rscript=config['Norm']['norm_rscript'],
         qc_flag=config['Norm']['qc_flag'], # whether to also compute size factors for QC-fail cells
-        all_positive=config['Norm']['positive_factors']
+        all_positive=config['Norm']['positive_factors'],
+        join_matrices=lambda wildcards, input: ",".join(input.counts_matrices), # stitch together inputs as comma-separated lists (required for R optparse)
+        join_barcodes=lambda wildcards, input: ",".join(input.cell_barcodes),
+        join_whitelist=lambda wildcards, input: ",".join(input.barcode_whitelist)
     output:
         sce=BASE_DIR + "SCE/Covid_SCE.RDS",
         sizefactors=BASE_DIR + "SCE/Covid_SumFactors.tsv",
         plots=BASE_DIR + "reports/Covid_norm.pdf"
     shell:
-        """singularity exec {config[singularity][img]} Rscript {params.norm_rscript} --matrixlist {input.counts_matrices} --barcodeslist {input.cell_barcodes} \
-        --whitelists {input.barcode_whitelist} --sparsity {params.gene_sparse} --output {output.sce} --sizefactors {output.sizefactors} {params.qc_flag} {params.all_positive}"""
+        """singularity exec {config[singularity][img]} Rscript {params.norm_rscript} --matrixlist {params.join_matrices} --barcodeslist {params.join_barcodes} \
+        --whitelists {params.join_whitelist} --sparsity {params.gene_sparse} --output {output.sce} --sizefactors {output.sizefactors} {params.qc_flag} {params.all_positive}"""
 
 #############################################################################
 # Run final file permission checks
