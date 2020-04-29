@@ -1,4 +1,3 @@
-
 ####################
 # Deconvolution size-factor normalisation
 # for single-cell Covid19 PBMCs
@@ -56,16 +55,16 @@ theme_set(theme_cowplot())
 # read in barcode whitelist to remove for estimating size factors
 # estimate size factors with and without QC-fail cell barcodes
 
-# this should be a space-separated list of matrices
-barcode.list <- strsplit(opt$barcodeslist, split=" ", fixed=TRUE)
-cells.list <- lapply(barcode.list, FUN=function(FB) read.csv(FB, stringsAsFactors=FALSE, header=FALSE)[,1])
-samp.names <- unlist(strsplit(opt$samplenames, split=" ", fixed=TRUE))
+# this should be a comma-separated list of matrices
+barcode.list <- unlist(strsplit(opt$barcodeslist, split=",", fixed=TRUE))
+cells.list <- lapply(barcode.list, FUN=function(FB) read.table(FB, stringsAsFactors=FALSE, header=FALSE)[,1])
+samp.names <- unlist(strsplit(opt$samplenames, split=",", fixed=TRUE))
 names(cells.list) <- samp.names
-message(paste0("Found ", length(unlist(cells.list)), " total cell barcodes across", length(samp.names), " samples"))
+message(paste0("Found ", length(unlist(cells.list)), " total cell barcodes across ", length(samp.names), " samples"))
 
 # Read in raw counts
 message("Making single cell object")
-fldr.list <- lapply(strsplit(opt$matrixlist, split=" ", fixed=TRUE), dirname)
+fldr.list <- unlist(lapply(strsplit(opt$matrixlist, split=",", fixed=TRUE), dirname))
 sce.list <- lapply(fldr.list, FUN=function(FM) read10xCounts(FM, col.names=TRUE))
 names(sce.list) <- samp.names
 
@@ -84,15 +83,26 @@ for(x in seq_along(samp.names)){
     colnames(sce.list[[samp.x]]) <- sce.cols
 }
 
+message("Subsetting to common features")
+# need to make sure the same genes are present in both SCE lists - what if the antibody data are different?
+features_sce.list <- lapply(sce.list, FUN=function(Q) rowData(Q)$ID)
+common.features <- Reduce(x=features_sce.list, f=function(x, y) intersect(x, y))
+
+message(paste0(length(common.features), " common features found"))
+
 message("Combining individual SCE objects together")
-sce <- do.call(cbind, sce.list)
+sce <- do.call(cbind, lapply(sce.list, FUN=function(SQ) SQ[common.features, ]))
+
+# get the list of antibody features in each data set
+ab.sce.list <- lapply(sce.list, FUN=function(Q) Q[rowData(Q)$Type == "Antibody Capture", ])
+ab.sce.list <- lapply(samp.names, FUN=function(SP) ab.sce.list[[SP]][, pass_bcs[[SP]]])
 
 message("Subsetting called cells")
 sce <- sce[, unlist(pass_bcs)]
 message(paste0(ncol(sce), " called cells in the SCE object"))
 
 # read in barcode whitelist - a space-separated list of files
-whitefile.list <- strsplit(opt$whitelists, split=" ", fixed=TRUE)
+whitefile.list <- unlist(strsplit(opt$whitelists, split=",", fixed=TRUE))
 white.list <- lapply(whitefile.list, FUN=function(FW) read.table(FW, sep="\t", stringsAsFactors=FALSE, header=FALSE)[, 1])
 names(white.list) <- samp.names
 
@@ -109,8 +119,12 @@ if(opt$outputqc){
     message(paste0("Including ", length(black.list), " QC-failed cells for normalisation"))
     sce.fail <- sce
     sce <- sce[, unlist(white_bcs)]
+    failab.sce.list <- ab.sce.list
+    ab.sce.list <- lapply(samp.names, FUN=function(SP) ab.sce.list[[SP]][, white_bcs[[SP]]])
+    print(lapply(ab.sce.list, FUN=dim))
 } else{
     sce <- sce[, unlist(white_bcs)]
+    ab.sce.list <- lapply(samp.names, FUN=function(SP) ab.sce.list[[SP]][, white_bcs[[SP]]])
 }
 
 # take an input gene X cell (barcode) dataframe of
@@ -176,6 +190,23 @@ s.factors <- data.frame("CellID"=colnames(sce), "SumFactor"=sizeFactors(sce))
 # derive the output for size factors
 write.table(s.factors, file=opt$sizefactors, quote=FALSE, sep="\t", row.names=FALSE)
 
+message("Output antibody SCE for each sample")
+for(x in seq_along(samp.names)){
+    samp.x <- samp.names[x]
+    ab.sce.x <- ab.sce.list[[samp.x]]
+    gsub(opt$output, pattern=".RDS", replacement="_QCFail.RDS") 
+    out.ab.sce <- gsub(opt$output, pattern=".RDS", replacement=paste0("-", samp.x, "_Ab.RDS"))
+    saveRDS(ab.sce.x, file=out.ab.sce)
+}
+
+good.cell.libs <- log10(colSums(counts(sce)))
+good.cell.df <- data.frame("CellID"=colnames(sce), "LibSize"=good.cell.libs, "SumFactor"=sizeFactors(sce),
+	     		   "QC.Status"="Pass")
+lapply(ab.sce.list, FUN=function(SP) print(SP))
+
+ab.libs.list <- lapply(ab.sce.list, FUN=function(SP) data.frame("CellID"=colnames(SP), "Ab.LibSize"=colSums(counts(SP))))
+good.ab.cell.df <- merge(good.cell.df, ab.libs, by='CellID')
+
 # purge the old sce object
 sink(file="/dev/null")
 rm(list=c("sce"))
@@ -226,12 +257,34 @@ if(opt$outputqc){
 	saveRDS(sce.fail, file=fail.out.sce)
 
 	# output the sum factors in addition
-	print(dim(sce.fail))
 	s.factors <- data.frame("CellID"=colnames(sce.fail), "SumFactor"=sizeFactors(sce.fail))
 	out.fail.factors <- gsub(opt$sizefactors, pattern="\\.tsv", replacement="_QCFail.tsv")
 	message(paste0("Writing QC-failed size factors to: ", out.fail.factors))  
 	write.table(s.factors, file=out.fail.factors, quote=FALSE, sep="\t", row.names=FALSE)
+
+	all.cell.libs <- log10(colSums(counts(sce)))
+	all.cell.df <- data.frame("CellID"=colnames(sce.fail), "LibSize"=good.cell.libs, "SumFactor"=sizeFactors(sce.fail)) 
+
+	all.ab.libs <- do.call(rbind.data.frame, lapply(failab.sce.list, FUN=function(SP) data.frame("CellID"=colnames(SP), "Ab.LibSize"=colSums(counts(SP)))))
+	all.ab.cell.df <- merge(all.cell.df, all.ab.libs, by='CellID')
+        all.ab.cell.df$QC <- "Fail"
+	all.ab.cell.df$QC[all.ab.cell.df$CellID %in% good.cell.df$CellID] <- "Pass"
+	fail.ab.cell.df <- all.ab.cell.df[all.ab.cell.df$QC %in% c("Fail"), ]
+	out.cell.df <- do.call(rbind.data.frame, list("pass"=all.good.cell.df, "fail"=fail.ab.cell.df))
+} else{
+    out.cell.df <- all.good.cell.df
 }
 
 # what plots do we want to generate? Distributions of size factors with and without QC'd cells?
-# distribution of gene sparsity for the same?
+# distribution of gene sparsity for the same? Plot of sum factors vs. lib sizes for GEX and Abs
+lib.plot <- ggplot(out.cell.df, aes(x=LibSize, y=SumFactor, colour=Pass)) +
+	           geom_point() +
+		   theme_bw()
+
+ablib.plot <- ggplot(out.cell.df, aes(x=LibSize, y=Ab.LibSize, colour=Pass)) +
+	             geom_point() +
+		     theme_bw()
+
+sfactor.plot <- ggplot(out.cell.df, aes(x=Ab.LibSize, y=SumFactor, colour=Pass)) +
+	               geom_point() +
+		       theme_bw()

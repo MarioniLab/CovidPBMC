@@ -213,14 +213,15 @@ rule normalise_gex:
         all_positive=config['Norm']['positive_factors'],
         join_matrices=lambda wildcards, input: ",".join(input.counts_matrices), # stitch together inputs as comma-separated lists (required for R optparse)
         join_barcodes=lambda wildcards, input: ",".join(input.cell_barcodes),
-        join_whitelist=lambda wildcards, input: ",".join(input.barcode_whitelist)
+        join_whitelist=lambda wildcards, input: ",".join(input.barcode_whitelist),
+        sampname=",".join(list(set(["{sample}_CITE".format(sample=CITE_REGEX.search(rx).group(1)) for rx in CITE_SAMPLES])))
     output:
         sce=BASE_DIR + "SCE/Covid_SCE.RDS",
         sizefactors=BASE_DIR + "SCE/Covid_SumFactors.tsv",
         plots=BASE_DIR + "reports/Covid_norm.pdf"
     shell:
         """singularity exec {config[singularity][img]} Rscript {params.norm_rscript} --matrixlist {params.join_matrices} --barcodeslist {params.join_barcodes} \
-        --whitelists {params.join_whitelist} --sparsity {params.gene_sparse} --output {output.sce} --sizefactors {output.sizefactors} {params.qc_flag} {params.all_positive}"""
+        --whitelists {params.join_whitelist} --sparsity {params.gene_sparse} --output {output.sce} --sizefactors {output.sizefactors} --samplenames {params.sampname} {params.qc_flag} {params.all_positive}"""
 
 #############################################################################
 # Run final file permission checks
