@@ -3,7 +3,7 @@
 ## 1) input directories
 ### check all file permissions are 766
 declare -i PERMISSION
-PERMISSION=8#766
+PERMISSION=8#777
 
 # loop over directories
 for direct in "S$@";
@@ -15,10 +15,10 @@ do
 
 	if [ "$file_stat" -gt "$PERMISSION" ]
 	then
-	    echo "Files with 766 permission: $filename"
+	    echo "Files with 777 permission: $filename"
 	else
 	    echo "Setting correct permissions: $filename"
-	    chmod 766 $filename
+	    chmod 777 $filename
 	fi
     done
 done
