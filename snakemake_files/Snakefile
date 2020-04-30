@@ -51,7 +51,11 @@ rule all:
             expand(BASE_DIR + "reports/{sample}_emptyDrops.pdf", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "reports/{sample}_QC.pdf", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             BASE_DIR + "SCE/Covid_SCE.RDS",
-            expand(BASE_DIR + "genotypes/{sample}.vcf.gz", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])
+            expand(BASE_DIR + "genotypes/cellSNP/{sample}.vcf.gz", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
+            expand(BASE_DIR + "genotypes/vartrix/{sample}_alt_matrix.mtx", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
+            expand(BASE_DIR + "genotypes/vartrix/{sample}_ref_matrix.mtx", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
+            expand(BASE_DIR + "demultiplexed/cellSNP_vireo/{sample}", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
+            expand(BASE_DIR + "demultiplexed/vartrix_vireo/{sample}", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])
 
 #############################################################################
 # Run GEX & ADT Cell Ranger
@@ -137,11 +141,11 @@ rule run_emptyDrops:
         "singularity exec {config[singularity][img]} Rscript {params.emptydrops_rscript} --input {input} --out {output.barcodes} --fdrthreshold {params.fdr} --umithreshold {params.umi} --logs {output.plots}"
 
 #############################################################################
-# Run single-cell genotyping
+# Run single-cell genotyping with cellSNP
 #############################################################################
-rule run_scGenotyping:
+rule run_scGenotyping_cellSNP:
     """
-    Genotyping single-cells from scRNA-sequencing reads
+    Genotyping single-cells from scRNA-sequencing reads with cellSNP
     """
     input:
         bam=BASE_DIR + "cellranger_output/{sample}_CITE/outs/possorted_genome_bam.bam",
@@ -151,27 +155,58 @@ rule run_scGenotyping:
 	min_MAF=config['genotyper']['min_MAF'],
 	min_Count=config['genotyper']['min_Count']
     output:
-        vcf=BASE_DIR + "genotypes/{sample}.vcf.gz"
+        vcf=BASE_DIR + "genotypes/cellSNP/{sample}.vcf.gz"
     shell:
         "singularity exec {config[singularity][img]} cellSNP -s {input.bam} -b {input.barcodes} -R {params.hg38_vcf} -p 20 --minMAF {params.min_MAF} --minCOUNT {params.min_Count} -o {output.vcf}"
 
 #############################################################################
-# Run single-cell de-multiplexing by genotype
+# Run single-cell genotyping with vartrix
 #############################################################################
-rule demultiplex_cells:
+rule run_scGenotyping_vartrix:
     """
-    De-multiplex single-cells from genetically distinct donors
+    Genotyping single-cells from scRNA-sequencing reads with vartrix
     """
     input:
-        sc_vcf=[BASE_DIR + "genotypes/{sample}.vcf.gz"],
-        barcodes=[]
+        bam=BASE_DIR + "cellranger_output/{sample}_CITE/outs/possorted_genome_bam.bam",
+        barcodes=BASE_DIR + "quant.dir/{sample}_cells.txt"
     params:
-        filters=config['demux']['filters'],
-        outdir=BASE_DIR + "demultiplexed"
+        hg38_vcf=config['genotyper']['ref_vcf'],
+	genome=config['hg38_SarsCov2']['fasta']
     output:
-        outfile=BASE_DIR + "demultiplexed/{sample}.demuxed.txt"
+        ref_mtx=BASE_DIR + "genotypes/vartrix/{sample}_ref_matrix.mtx",
+        alt_mtx=BASE_DIR + "genotypes/vartrix/{sample}_alt_matrix.mtx"
     shell:
-        "singularity exec {config[singularity][img]} vireo {input} {output} {params}"
+        "singularity exec {config[singularity][img]} vartrix --vcf {params.hg38_vcf} --bam {input.bam} --fasta {params.genome} --cell-barcodes {input.barcodes} --threads 20 --log-level info --scoring-method coverage --out-matrix {output.alt_mtx} --ref-matrix {output.ref_mtx}"
+
+#############################################################################
+# Run single-cell de-multiplexing by genotype with vireo using vartrix output
+#############################################################################
+rule demultiplex_cells_vartrix:
+    """
+    De-multiplex single-cells from genetically distinct donors using vartrix+vireo
+    """
+    input:
+        ref_mtx=BASE_DIR + "genotypes/vartrix/{sample}_ref_matrix.mtx",
+        alt_mtx=BASE_DIR + "genotypes/vartrix/{sample}_alt_matrix.mtx",
+        barcodes=BASE_DIR + "quant.dir/{sample}_cells.txt"
+    output:
+        outs=directory(BASE_DIR + "demultiplexed/" + "vartrix_vireo/" + "{sample}")
+    shell:
+        "singularity exec {config[singularity][img]} vireo --vartrixData {input.alt_mtx},{input.ref_mtx},{input.barcodes} --outDir {output} --randSeed 42" 
+
+#############################################################################
+# Run single-cell de-multiplexing by genotype with vireo using cellSNP output
+#############################################################################
+rule demultiplex_cells_cellSNP:
+    """
+    De-multiplex single-cells from genetically distinct donors using cellSNP+vireo
+    """
+    input:
+        vcf=BASE_DIR + "genotypes/cellSNP/{sample}.vcf.gz"
+    output:
+        outs=directory(BASE_DIR + "demultiplexed/" + "cellSNP_vireo/" + "{sample}")
+    shell:
+        "singularity exec {config[singularity][img]} vireo --cellData {input.vcf} --nDonor 4 --outDir {output} --randSeed 42" 
 
 #############################################################################
 # Single-cell CITE-seq QC
@@ -213,15 +248,14 @@ rule normalise_gex:
         all_positive=config['Norm']['positive_factors'],
         join_matrices=lambda wildcards, input: ",".join(input.counts_matrices), # stitch together inputs as comma-separated lists (required for R optparse)
         join_barcodes=lambda wildcards, input: ",".join(input.cell_barcodes),
-        join_whitelist=lambda wildcards, input: ",".join(input.barcode_whitelist),
-        sampname=",".join(list(set(["{sample}_CITE".format(sample=CITE_REGEX.search(rx).group(1)) for rx in CITE_SAMPLES])))
+        join_whitelist=lambda wildcards, input: ",".join(input.barcode_whitelist)
     output:
         sce=BASE_DIR + "SCE/Covid_SCE.RDS",
         sizefactors=BASE_DIR + "SCE/Covid_SumFactors.tsv",
         plots=BASE_DIR + "reports/Covid_norm.pdf"
     shell:
         """singularity exec {config[singularity][img]} Rscript {params.norm_rscript} --matrixlist {params.join_matrices} --barcodeslist {params.join_barcodes} \
-        --whitelists {params.join_whitelist} --sparsity {params.gene_sparse} --output {output.sce} --sizefactors {output.sizefactors} --samplenames {params.sampname} {params.qc_flag} {params.all_positive}"""
+        --whitelists {params.join_whitelist} --sparsity {params.gene_sparse} --output {output.sce} --sizefactors {output.sizefactors} {params.qc_flag} {params.all_positive}"""
 
 #############################################################################
 # Run final file permission checks
