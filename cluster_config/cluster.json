@@ -45,5 +45,12 @@
         "threads"    : 12000,
         "memory"     : 100000,
         "resources"  : "\"select[mem>96000] rusage[mem=96000]\""
+    },
+    "normalise_gex":
+    {
+        "nCPUs"      : 1,
+        "threads"    : 12000,
+        "memory"     : 48000,
+        "resources"  : "\"select[mem>48000] rusage[mem=32000]\""
     }
 }
