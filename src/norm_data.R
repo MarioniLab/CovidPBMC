@@ -96,6 +96,7 @@ sce <- do.call(cbind, lapply(sce.list, FUN=function(SQ) SQ[common.features, ]))
 # get the list of antibody features in each data set
 ab.sce.list <- lapply(sce.list, FUN=function(Q) Q[rowData(Q)$Type == "Antibody Capture", ])
 ab.sce.list <- lapply(samp.names, FUN=function(SP) ab.sce.list[[SP]][, pass_bcs[[SP]]])
+names(ab.sce.list) <- samp.names
 
 message("Subsetting called cells")
 sce <- sce[, unlist(pass_bcs)]
@@ -121,7 +122,6 @@ if(opt$outputqc){
     sce <- sce[, unlist(white_bcs)]
     failab.sce.list <- ab.sce.list
     ab.sce.list <- lapply(samp.names, FUN=function(SP) ab.sce.list[[SP]][, white_bcs[[SP]]])
-    print(lapply(ab.sce.list, FUN=dim))
 } else{
     sce <- sce[, unlist(white_bcs)]
     ab.sce.list <- lapply(samp.names, FUN=function(SP) ab.sce.list[[SP]][, white_bcs[[SP]]])
@@ -194,17 +194,17 @@ message("Output antibody SCE for each sample")
 for(x in seq_along(samp.names)){
     samp.x <- samp.names[x]
     ab.sce.x <- ab.sce.list[[samp.x]]
-    gsub(opt$output, pattern=".RDS", replacement="_QCFail.RDS") 
-    out.ab.sce <- gsub(opt$output, pattern=".RDS", replacement=paste0("-", samp.x, "_Ab.RDS"))
+    gsub(opt$output, pattern="\\.RDS", replacement="_QCFail.RDS")
+    out.ab.sce <- gsub(opt$output, pattern="\\.RDS", replacement=paste0("-", samp.x, "_Ab.RDS"))
     saveRDS(ab.sce.x, file=out.ab.sce)
 }
 
 good.cell.libs <- log10(colSums(counts(sce)))
 good.cell.df <- data.frame("CellID"=colnames(sce), "LibSize"=good.cell.libs, "SumFactor"=sizeFactors(sce),
-	     		   "QC.Status"="Pass")
-lapply(ab.sce.list, FUN=function(SP) print(SP))
+	     		   "QC.Status"="Pass", "Sample"=gsub(colnames(sce), pattern="([a-zA-Z0-9]+)_([ATCG]+)-1", replacement="\\1"))
 
-ab.libs.list <- lapply(ab.sce.list, FUN=function(SP) data.frame("CellID"=colnames(SP), "Ab.LibSize"=colSums(counts(SP))))
+ab.libs.list <- lapply(ab.sce.list, FUN=function(SP) data.frame("CellID"=colnames(SP), "Ab.LibSize"=log10(colSums(counts(SP)))))
+ab.libs <- do.call(rbind.data.frame, ab.libs.list)
 good.ab.cell.df <- merge(good.cell.df, ab.libs, by='CellID')
 
 # purge the old sce object
@@ -262,29 +262,45 @@ if(opt$outputqc){
 	message(paste0("Writing QC-failed size factors to: ", out.fail.factors))  
 	write.table(s.factors, file=out.fail.factors, quote=FALSE, sep="\t", row.names=FALSE)
 
-	all.cell.libs <- log10(colSums(counts(sce)))
-	all.cell.df <- data.frame("CellID"=colnames(sce.fail), "LibSize"=good.cell.libs, "SumFactor"=sizeFactors(sce.fail)) 
+	all.cell.libs <- log10(colSums(counts(sce.fail)))
+	all.cell.df <- data.frame("CellID"=colnames(sce.fail), "LibSize"=all.cell.libs, "SumFactor"=sizeFactors(sce.fail),
+		       		  "Sample"=gsub(colnames(sce.fail), pattern="([a-zA-Z0-9]+)_([ATCG]+)-1", replacement="\\1")) 
 
-	all.ab.libs <- do.call(rbind.data.frame, lapply(failab.sce.list, FUN=function(SP) data.frame("CellID"=colnames(SP), "Ab.LibSize"=colSums(counts(SP)))))
+	message("Collating Ab libraries on QC-failed cells")
+	all.ab.libs.list <- lapply(failab.sce.list, FUN=function(SP) data.frame("CellID"=colnames(SP), "Ab.LibSize"=log10(colSums(counts(SP)))))
+	all.ab.libs <- do.call(rbind.data.frame, all.ab.libs.list)
 	all.ab.cell.df <- merge(all.cell.df, all.ab.libs, by='CellID')
-        all.ab.cell.df$QC <- "Fail"
-	all.ab.cell.df$QC[all.ab.cell.df$CellID %in% good.cell.df$CellID] <- "Pass"
-	fail.ab.cell.df <- all.ab.cell.df[all.ab.cell.df$QC %in% c("Fail"), ]
-	out.cell.df <- do.call(rbind.data.frame, list("pass"=all.good.cell.df, "fail"=fail.ab.cell.df))
+        all.ab.cell.df$QC.Status <- "Fail"
+	all.ab.cell.df$QC.Status[all.ab.cell.df$CellID %in% good.cell.df$CellID] <- "Pass"
+	fail.ab.cell.df <- all.ab.cell.df[all.ab.cell.df$QC.Status %in% c("Fail"), ]
+	out.cell.df <- do.call(rbind.data.frame, list("pass"=good.ab.cell.df, "fail"=fail.ab.cell.df))
 } else{
-    out.cell.df <- all.good.cell.df
+    out.cell.df <- good.cell.df
 }
 
 # what plots do we want to generate? Distributions of size factors with and without QC'd cells?
 # distribution of gene sparsity for the same? Plot of sum factors vs. lib sizes for GEX and Abs
-lib.plot <- ggplot(out.cell.df, aes(x=LibSize, y=SumFactor, colour=Pass)) +
+title <- ggdraw() +
+            draw_label(paste0("Comparisons of library sizes across samples"),
+	    		fontface="bold", x=0, hjust=0, size=20)
+
+lib.plot <- ggplot(out.cell.df, aes(x=LibSize, y=SumFactor, colour=QC.Status)) +
 	           geom_point() +
-		   theme_bw()
+		   theme_bw() + facet_wrap(~Sample) +
+		   labs(title="Library Size vs. Sum Factor")
 
-ablib.plot <- ggplot(out.cell.df, aes(x=LibSize, y=Ab.LibSize, colour=Pass)) +
+ablib.plot <- ggplot(out.cell.df, aes(x=LibSize, y=Ab.LibSize, colour=QC.Status)) +
 	             geom_point() +
-		     theme_bw()
+		     theme_bw() + facet_wrap(~Sample) +
+		     labs(title="Library Size vs. Ab Library Size")
 
-sfactor.plot <- ggplot(out.cell.df, aes(x=Ab.LibSize, y=SumFactor, colour=Pass)) +
+sfactor.plot <- ggplot(out.cell.df, aes(x=Ab.LibSize, y=SumFactor, colour=QC.Status)) +
 	               geom_point() +
-		       theme_bw()
+		       theme_bw() + facet_wrap(~Sample) +
+		       labs(title="Ab Library Size vs. Sum Factor")
+
+out.plots <- plot_grid(lib.plot, ablib.plot, sfactor.plot,
+	     	       ncol=2)
+pout <- plot_grid(title, out.plots, ncol=1, rel_heights=c(0.1, 1))
+
+ggsave(filename=opt$plots, plot=pout, width=12, height=12)
