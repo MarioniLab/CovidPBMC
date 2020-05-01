@@ -192,7 +192,7 @@ rule demultiplex_cells_vartrix:
     output:
         outs=directory(BASE_DIR + "demultiplexed/" + "vartrix_vireo/" + "{sample}")
     shell:
-        "singularity exec {config[singularity][img]} vireo --vartrixData {input.alt_mtx},{input.ref_mtx},{input.barcodes} --outDir {output} --randSeed 42" 
+        "singularity exec {config[singularity][img]} vireo --vartrixData {input.alt_mtx},{input.ref_mtx},{input.barcodes} --nDonor 4 --outDir {output} --randSeed 42" 
 
 #############################################################################
 # Run single-cell de-multiplexing by genotype with vireo using cellSNP output
