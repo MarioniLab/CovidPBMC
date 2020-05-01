@@ -107,7 +107,7 @@ plots <- plot_grid(bcplt, pval.hist, nrow=1)
 # Barcodes associated with cells
 out <- data.frame("Barcode"=sce$Barcode[which(e.out$FDR<=0.001)])
 
-write.table(out, file=opt$out, row.names=FALSE,col.names=FALSE, sep=",")
+write.table(out, file=opt$out, row.names=FALSE,col.names=FALSE, sep=",", quote=FALSE)
 
 # QCplots as pdf
 ggsave(filename=opt$logs, plot=plots, width=10, height=5)
