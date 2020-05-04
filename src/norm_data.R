@@ -34,9 +34,6 @@ parser <- add_option(parser, c("-q", "--outputqc"), type="logical", action="stor
 parser <- add_option(parser, c("-f", "--sizefactors"), type="character",
        	  	     help="Output path for size factors")
 
-parser <- add_option(parser, c("-n", "--samplenames"), type="character",
-                     help="A list of sample names to prefix to cell barcodes - in the same order as the input data")
-
 parser <- add_option(parser, c("-g", "--force"), type="logical", action="store_true", default=FALSE,
                      help="Force size factors to be positive")
 
@@ -57,8 +54,13 @@ theme_set(theme_cowplot())
 
 # this should be a comma-separated list of matrices
 barcode.list <- unlist(strsplit(opt$barcodeslist, split=",", fixed=TRUE))
+samp.names <- lapply(barcode.list, FUN=function(P) gsub(unlist(lapply(strsplit(P, fixed=TRUE, split="/"), 
+       	  		       		       				      FUN=function(sP) paste0(sP[length(sP)]))), pattern="_cells\\.txt", replacement=""))
+samp.names <- as.factor(unlist(samp.names))
 cells.list <- lapply(barcode.list, FUN=function(FB) read.table(FB, stringsAsFactors=FALSE, header=FALSE)[,1])
-samp.names <- unlist(strsplit(opt$samplenames, split=",", fixed=TRUE))
+
+# to keep a consistent ordering, this needs to become a factor - it also needs to be learnt from the filenames
+# rather than strictly relying on the input order
 names(cells.list) <- samp.names
 message(paste0("Found ", length(unlist(cells.list)), " total cell barcodes across ", length(samp.names), " samples"))
 
@@ -70,33 +72,35 @@ names(sce.list) <- samp.names
 
 # samples may have the same barcodes - need to add a sample-specific prefix
 pass_bcs <- list()
-for(x in seq_along(samp.names)){
-    samp.x <- samp.names[x]
+for(x in seq_along(levels(samp.names))){
+    samp.x <- levels(samp.names)[x]
     bcs.x <- paste(samp.x, cells.list[[samp.x]], sep="_")
     pass_bcs[[samp.x]] <- bcs.x
 }
 
 # Subset to called cells
-for(x in seq_along(samp.names)){
-    samp.x <- samp.names[x]
+for(x in seq_along(levels(samp.names))){
+    samp.x <- levels(samp.names)[x]
     sce.cols <- paste(samp.x, colnames(sce.list[[samp.x]]), sep="_")
     colnames(sce.list[[samp.x]]) <- sce.cols
 }
 
 message("Subsetting to common features")
 # need to make sure the same genes are present in both SCE lists - what if the antibody data are different?
-features_sce.list <- lapply(sce.list, FUN=function(Q) rowData(Q)$ID)
+# This will subset to just the common GEX features
+features_sce.list <- lapply(sce.list, FUN=function(Q) rowData(Q)$ID[rowData(Q)$Type == "Gene Expression"])
 common.features <- Reduce(x=features_sce.list, f=function(x, y) intersect(x, y))
-
 message(paste0(length(common.features), " common features found"))
 
 message("Combining individual SCE objects together")
-sce <- do.call(cbind, lapply(sce.list, FUN=function(SQ) SQ[common.features, ]))
+sce <- do.call(cbind, lapply(samp.names, FUN=function(SQ) sce.list[[SQ]][common.features, ]))
 
 # get the list of antibody features in each data set
-ab.sce.list <- lapply(sce.list, FUN=function(Q) Q[rowData(Q)$Type == "Antibody Capture", ])
-ab.sce.list <- lapply(samp.names, FUN=function(SP) ab.sce.list[[SP]][, pass_bcs[[SP]]])
-names(ab.sce.list) <- samp.names
+ab.sce.list <- lapply(samp.names, FUN=function(Q) sce.list[[Q]][rowData(sce.list[[Q]])$Type == "Antibody Capture", ])
+
+names(ab.sce.list) <- levels(samp.names)
+ab.sce.list <- lapply(levels(samp.names), FUN=function(SP) ab.sce.list[[SP]][, pass_bcs[[SP]]])
+names(ab.sce.list) <- levels(samp.names)
 
 message("Subsetting called cells")
 sce <- sce[, unlist(pass_bcs)]
@@ -108,8 +112,8 @@ white.list <- lapply(whitefile.list, FUN=function(FW) read.table(FW, sep="\t", s
 names(white.list) <- samp.names
 
 white_bcs <- list()
-for(x in seq_along(samp.names)){
-    samp.x <- samp.names[x]
+for(x in seq_along(levels(samp.names))){
+    samp.x <- levels(samp.names)[x]
     white.x <- paste(samp.x, white.list[[samp.x]], sep="_")
     white_bcs[[samp.x]] <- white.x    
 }
@@ -121,10 +125,13 @@ if(opt$outputqc){
     sce.fail <- sce
     sce <- sce[, unlist(white_bcs)]
     failab.sce.list <- ab.sce.list
+    # I think this step might switch the names around - grr!
     ab.sce.list <- lapply(samp.names, FUN=function(SP) ab.sce.list[[SP]][, white_bcs[[SP]]])
+    names(ab.sce.list) <- samp.names
 } else{
     sce <- sce[, unlist(white_bcs)]
     ab.sce.list <- lapply(samp.names, FUN=function(SP) ab.sce.list[[SP]][, white_bcs[[SP]]])
+    names(ab.sce.list) <- samp.names
 }
 
 # take an input gene X cell (barcode) dataframe of
@@ -166,6 +173,7 @@ message(paste0("Estimating size factors using ", size.inc, " cell increments"))
 sce <- computeSumFactors(sce,
                          max.cluster.size=max.size,
                          positive=opt$force,
+			 subset.row=keep_genes,
                          assay.type='counts', clusters=clusters)
   
 # the scater function is normalise, not normalize
@@ -191,8 +199,8 @@ s.factors <- data.frame("CellID"=colnames(sce), "SumFactor"=sizeFactors(sce))
 write.table(s.factors, file=opt$sizefactors, quote=FALSE, sep="\t", row.names=FALSE)
 
 message("Output antibody SCE for each sample")
-for(x in seq_along(samp.names)){
-    samp.x <- samp.names[x]
+for(x in seq_along(levels(samp.names))){
+    samp.x <- levels(samp.names)[x]
     ab.sce.x <- ab.sce.list[[samp.x]]
     gsub(opt$output, pattern="\\.RDS", replacement="_QCFail.RDS")
     out.ab.sce <- gsub(opt$output, pattern="\\.RDS", replacement=paste0("-", samp.x, "_Ab.RDS"))
@@ -242,10 +250,12 @@ if(opt$outputqc){
 	}
 
 	# change the window size in 50% increments
+	# need to force positive size-factors for the cells that fail QC
 	size.inc <- ceiling(max.size * 0.5)
 	sce.fail <- computeSumFactors(sce.fail,
                          max.cluster.size=max.size,
-                         positive=opt$force,
+                         positive=TRUE,
+			 subset.row=keep_genes,
                          assay.type='counts', clusters=clusters)
   
 	# the scater function is normalise, not normalize
