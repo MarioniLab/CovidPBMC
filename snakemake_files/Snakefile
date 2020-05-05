@@ -192,7 +192,7 @@ rule demultiplex_cells_vartrix:
     output:
         outs=directory(BASE_DIR + "demultiplexed/" + "vartrix_vireo/" + "{sample}")
     shell:
-        "singularity exec {config[singularity][img]} vireo --vartrixData {input.alt_mtx},{input.ref_mtx},{input.barcodes} --nDonor 4 --outDir {output} --randSeed 42" 
+        "singularity exec {config[singularity][img]} vireo --vartrixData {input.alt_mtx},{input.ref_mtx},{input.barcodes} --nDonor 4 --outDir {output} --randSeed 42 --noPlot" 
 
 #############################################################################
 # Run single-cell de-multiplexing by genotype with vireo using cellSNP output
@@ -206,7 +206,7 @@ rule demultiplex_cells_cellSNP:
     output:
         outs=directory(BASE_DIR + "demultiplexed/" + "cellSNP_vireo/" + "{sample}")
     shell:
-        "singularity exec {config[singularity][img]} vireo --cellData {input.vcf} --nDonor 4 --outDir {output} --randSeed 42" 
+        "singularity exec {config[singularity][img]} vireo --cellData {input.vcf} --nDonor 4 --outDir {output} --randSeed 42 --noPlot" 
 
 #############################################################################
 # Single-cell CITE-seq QC
@@ -255,7 +255,7 @@ rule normalise_gex:
         plots=BASE_DIR + "reports/Covid_norm.pdf"
     shell:
         """singularity exec {config[singularity][img]} Rscript {params.norm_rscript} --matrixlist {params.join_matrices} --barcodeslist {params.join_barcodes} \
-        --whitelists {params.join_whitelist} --sparsity {params.gene_sparse} --output {output.sce} --sizefactors {output.sizefactors} {params.qc_flag} {params.all_positive}"""
+        --whitelists {params.join_whitelist} --sparsity {params.gene_sparse} --output {output.sce} --sizefactors {output.sizefactors} --plots {output.plots} {params.qc_flag} {params.all_positive}"""
 
 #############################################################################
 # Run final file permission checks
