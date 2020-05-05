@@ -41,7 +41,7 @@ Norm:
     gene_sparse: 0.95 # the percentages of 0's to tolerate per gene prior to size factor estimation
     norm_rscript: "/hps/nobackup/research/marioni/covid19/CovidPBMC/src/norm_data.R"
     qc_flag: "--outputqc"
-    positive_factors: "--force" # force size factors to be positive
+    positive_factors: "" # force size factors to be positive
 
 FinalCheck:
     permission_script: "/hps/nobackup/research/marioni/covid19/CovidPBMC/src/check_permissions.sh"
