@@ -1,0 +1,57 @@
+{
+    "__default__" :
+    {
+        "nCPUs"     : 12,
+        "nodes"     : 1,
+        "memory"    : 4000,
+        "time"      : "23:59:59",
+        "name"      : "JOBNAME.{rule}.{wildcards}",
+        "output"    : "logs/{rule}.{wildcards}.out",
+        "error"     : "logs/{rule}.{wildcards}.err"
+    },
+    "run_CITE_cellranger":
+    {
+        "nCPUs"     : 24,
+        "memory"    : 60000
+    },
+    "run_TCR_cellranger":
+    {
+        "nCPUs"      : 24,
+        "memory"     : 60000
+    },
+    "run_BCR_cellranger":
+    {
+        "nCPUs"      : 24,
+        "memory"     : 60000
+    },
+    "run_emptyDrops":
+    {
+        "nCPUs"      : 12,
+        "memory"     : 48000
+    },
+    "run_scGenotyping_vartrix":
+    {
+        "nCPUs"      : 12,
+        "memory"     : 100000
+    },
+    "run_scGenotyping_cellSNP":
+    {
+        "nCPUs"      : 12,
+        "memory"     : 100000
+    },
+    "normalise_gex":
+    {
+        "nCPUs"      : 1,
+        "memory"     : 48000
+    },
+    "demultiplex_cells_vartrix":
+    {
+        "nCPUs"      : 12,
+        "memory"     : 100000
+    },
+    "demultiplex_cells_cellSNP":
+    {
+        "nCPUs"      : 12,
+        "memory"     : 160000
+    }
+}
