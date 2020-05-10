@@ -44,5 +44,8 @@ Norm:
     qc_flag: "--outputqc"
     positive_factors: "" # force size factors to be positive
 
+ADT:
+    qc_rscript: ""
+
 FinalCheck:
     permission_script: "/hps/nobackup/research/marioni/covid19/CovidPBMC/src/check_permissions.sh"

@@ -263,6 +263,25 @@ rule normalise_gex:
         """singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.norm_rscript} --matrixlist {params.join_matrices} --barcodeslist {params.join_barcodes} \
         --whitelists {params.join_whitelist} --sparsity {params.gene_sparse} --output {output.sce} --sizefactors {output.sizefactors} --plots {output.plots} {params.qc_flag} {params.all_positive}"""
 
+
+###############################################################################
+# Peform ADT-specific diagnostic for seq coverage, etc
+##############################################################################
+rule run_adt_qc:
+    """
+    Run QC diagnostics on ADT libraries to check for sufficient coverage and balance
+    """
+    input:
+        adt_sce=expand(BASE_DIR + "SCE/Covid_SCE-{sample}_Abs.RDS", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])),
+        cellranger_dir=expand(directory(BASE_DIR + "cellranger_output/{sample}_CITE)", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]))
+    params:
+        adt_qc_rscript=config['ADT']['qc_rscript']
+    output:
+        plots=BASE_DIR + "reports/{sample}_ADT-QC.pdf"
+    shell:
+        """ singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.adt_qc_rscript} --CITEdirectory {input.cellranger_dir} --ADTSCE {input.adt_sce} --plots {output.plots}"""
+
+
 #############################################################################
 # Run final file permission checks
 #############################################################################
