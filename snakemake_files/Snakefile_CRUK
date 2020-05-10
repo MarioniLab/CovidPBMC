@@ -18,8 +18,8 @@ import re
 # nohup nice -19 snakemake -s CovidPBMC/snakemake_files/Snakefile --cluster "sbatch --cpus-per-taks={cluster.nCPUs} --nodes={cluster.nodes} --job-name={cluster.name} --mem={cluster.memory} --output={cluster.output} --error={cluster.error} " --cluster-config CovidPBMC/cluster_config/CRUK_cluster.json --jobs=100 --latency-wait=250 --verbose --rerun-incomplete -rp&
 
 #############################################################################
-configfile: "CovidPBMC/site_profile/configCRUK.yaml"
-configfile: "CovidPBMC/config/config.yaml"
+# make sure no trailing spaces after key:value pairs in the config yaml - this took me >1hour to figure out!!
+configfile: "CovidPBMC/config/configCRUK.yaml"
 
 BASE_DIR = "/mnt/scratchb/jmlab/morgan02/Covid/"
 
@@ -61,7 +61,8 @@ rule all:
             expand(BASE_DIR + "genotypes/vartrix/{sample}_alt_matrix.mtx", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "genotypes/vartrix/{sample}_ref_matrix.mtx", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "demultiplexed/cellSNP_vireo/{sample}", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
-            expand(BASE_DIR + "demultiplexed/vartrix_vireo/{sample}", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])
+            expand(BASE_DIR + "demultiplexed/vartrix_vireo/{sample}", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
+            BASE_DIR + "reports/ADT-QC.pdf"
 
 #############################################################################
 # Run GEX & ADT Cell Ranger
@@ -272,14 +273,14 @@ rule run_adt_qc:
     Run QC diagnostics on ADT libraries to check for sufficient coverage and balance
     """
     input:
-        adt_sce=expand(BASE_DIR + "SCE/Covid_SCE-{sample}_Abs.RDS", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])),
-        cellranger_dir=expand(directory(BASE_DIR + "cellranger_output/{sample}_CITE)", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]))
+        in_sce=BASE_DIR + "SCE/Covid_SCE.RDS",
+        cellranger_dir=directory(expand(BASE_DIR + "cellranger_output/{sample}_CITE", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])))
     params:
         adt_qc_rscript=config['ADT']['qc_rscript']
     output:
-        plots=BASE_DIR + "reports/{sample}_ADT-QC.pdf"
+        plots=BASE_DIR + "reports/ADT-QC.pdf"
     shell:
-        """ singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.adt_qc_rscript} --CITEdirectory {input.cellranger_dir} --ADTSCE {input.adt_sce} --plots {output.plots}"""
+        """ singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.adt_qc_rscript} --CITEdirectory {input.cellranger_dir} --ADTSCE {input.in_sce} --plots {output.plots}"""
 
 
 #############################################################################
