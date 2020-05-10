@@ -44,5 +44,8 @@ Norm:
     qc_flag: "--outputqc"
     positive_factors: "" # force size factors to be positive
 
+ADT:
+    qc_rscript: "/mnt/scratchb/jmlab/morgan02/Covid/CovidPBMC/src/ADT_report.R"
+
 FinalCheck:
     permission_script: "/mnt/scratchb/jmlab/morgan02/Covid/CovidPBMC/src/check_permissions.sh"
