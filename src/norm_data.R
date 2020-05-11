@@ -28,7 +28,7 @@ parser <- add_option(parser, c("-p", "--plots"), type="character",
 parser <- add_option(parser, c("-o", "--output"), type="character",
                      help="Path to output SingleCellExperiment object")
 
-parser <- add_option(parser, c("-q", "--outputqc"), type="logical", action="store_true",
+parser <- add_option(parser, c("-q", "--outputqc"), type="logical", action="store_true", default=FALSE,
                      help="Output normalised data for QC-failed cells as well")
 
 parser <- add_option(parser, c("-f", "--sizefactors"), type="character",
@@ -204,6 +204,10 @@ for(x in seq_along(levels(samp.names))){
     ab.sce.x <- ab.sce.list[[samp.x]]
     gsub(opt$output, pattern="\\.RDS", replacement="_QCFail.RDS")
     out.ab.sce <- gsub(opt$output, pattern="\\.RDS", replacement=paste0("-", samp.x, "_Ab.RDS"))
+    # add size factors and normalise
+    x.cells <- colnames(ab.sce.x)
+    sizeFactors(ab.sce.x) <- sizeFactors(sce[, x.cells])
+    ab.sce.x <- scater::normalize(ab.sce.x)
     saveRDS(ab.sce.x, file=out.ab.sce)
 }
 
@@ -217,7 +221,7 @@ good.ab.cell.df <- merge(good.cell.df, ab.libs, by='CellID')
 
 # purge the old sce object
 sink(file="/dev/null")
-rm(list=c("sce"))
+rm(list=c("sce", "clusters"))
 gc()
 sink(file=NULL)
 
@@ -226,29 +230,57 @@ if(opt$outputqc){
 	message("Estimating size factors for QC-failed cells")
 	n.cells <- ncol(sce.fail)
 	n.genes <- nrow(sce.fail)
-  
-	gene_sparsity <- (apply(counts(sce.fail) == 0, MARGIN = 1, sum)/n.cells)
-	keep_genes <- gene_sparsity < opt$sparsity
 
-	# set cluster size to 1% of data
-	cluster.size <- ceiling(ncol(sce.fail) * 0.05)
-  
-	if(ncol(sce.fail)> 300){
-  	    clusters <- quickCluster(sce.fail, min.size=cluster.size,
+	# set cluster size to 10% of data
+	# keep the same genes as previous
+	cluster.size <- ceiling(ncol(sce.fail) * 0.1)
+
+	message("Quick clustering on all cells")
+	# for some reason there is an error here as the internal quick-clustering 
+	# does it normalised values, so a quick and dirty SF estimate gives -ve SFs
+	# This puts a bit of a spanner in the works.
+	# Can use.ranks get around this?
+	# I'll remove the smallest 5% of QC-failed cells
+	tryCatch(
+  	clusters <- quickCluster(sce.fail, min.size=cluster.size,
   	                             subset.row=keep_genes,
-				     method="igraph")
-	    max.size <- floor(cluster.size/2)
-	} else if(ncol(sce.fail) < 100) {
-	    clusters <- quickCluster(sce.fail, min.size=cluster.size, 
-  	    	       		     subset.row=keep_genes,
-                     		     method="igraph")
-	    max.size <- floor(cluster.size/2) + 1
-        } else{
-	    clusters <- quickCluster(sce.fail, min.size=cluster.size,
-  	           		     subset.row=keep_genes)
-	    max.size <- floor(cluster.size/2)
-	}
+				     use.ranks=TRUE,
+				     method="igraph"),
+        error = function(c){
+	   message("Negative size factors in quick cluster, removing smallest 5% of QC-failed cells")
+	   col.sums <- colSums(counts(sce.fail))
+	   tp.cells <- floor(n.cells * 0.05)
+	   message(paste0("Removing ", tp.cells, " cells"))
+	   tp.thresh <- max(col.sums[order(col.sums, decreasing=FALSE)][1:tp.cells])
 
+	   sce.fail <- sce.fail[, col.sums > tp.thresh]
+	   message(paste0(ncol(sce.fail), " cells remaining"))
+	   clusters <- quickCluster(sce.fail, min.size=cluster.size,
+                                     subset.row=keep_genes,
+                                     use.ranks=FALSE,
+                                     method="igraph")
+           return(clusters)
+	   }, finally = {
+	      if(exists("clusters")){
+	          pass
+	      } else{
+	      message("Creating quick clusters")
+	      col.sums <- colSums(counts(sce.fail))
+	      tp.cells <- floor(n.cells * 0.05)
+	      tp.thresh <- max(col.sums[order(col.sums, decreasing=FALSE)][1:tp.cells])
+	      sce.fail <- sce.fail[, col.sums > tp.thresh]
+
+	      clusters <- quickCluster(sce.fail, min.size=cluster.size,
+                                     subset.row=keep_genes,
+                                     use.ranks=TRUE,
+                                     method="igraph")
+	      }
+	   }
+	)
+	message("Quick clustering done")
+	max.size <- floor(cluster.size/2)
+
+	message("Computing sum factors")
 	# change the window size in 50% increments
 	# need to force positive size-factors for the cells that fail QC
 	size.inc <- ceiling(max.size * 0.5)
@@ -261,6 +293,7 @@ if(opt$outputqc){
 	# the scater function is normalise, not normalize
 	# I appreciate the British spelling, but this might cause a clash
 	# with igraph for those not familiar
+	message("Normalising QC-failed cells")
 	sce.fail <- normalize(sce.fail)
 	fail.out.sce <- gsub(opt$output, pattern=".RDS", replacement="_QCFail.RDS")
 	message(paste0("Writing QC-failed SCE object to: ", fail.out.sce))  
@@ -269,7 +302,7 @@ if(opt$outputqc){
 	# output the sum factors in addition
 	s.factors <- data.frame("CellID"=colnames(sce.fail), "SumFactor"=sizeFactors(sce.fail))
 	out.fail.factors <- gsub(opt$sizefactors, pattern="\\.tsv", replacement="_QCFail.tsv")
-	message(paste0("Writing QC-failed size factors to: ", out.fail.factors))  
+	message(paste0("Writing QC-failed size factors to: ", out.fail.factors))
 	write.table(s.factors, file=out.fail.factors, quote=FALSE, sep="\t", row.names=FALSE)
 
 	all.cell.libs <- log10(colSums(counts(sce.fail)))
