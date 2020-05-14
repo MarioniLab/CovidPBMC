@@ -44,6 +44,9 @@ Norm:
     qc_flag: "--outputqc"
     positive_factors: "" # force size factors to be positive
 
+Doublets:
+    doub_score_rscript: "/hps/nobackup/research/marioni/covid19/CovidPBMC/src/comp_doublet_scores.R"
+
 ADT:
     qc_rscript: ""
 

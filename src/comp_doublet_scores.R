@@ -36,18 +36,12 @@ parser <- add_option(parser, c("-s", "--SCE"), type="character",
 		     help="Path to the normalized SCE object")
 parser <- add_option(parser, c("-d", "--donorID"), type="character", 
 		     help="Path to donor_ids.tsv containing the donor assignments")
-parser <- add_option(parser, c("-o", "--out"), type="character", 
-		     help="Path to .csv to write doublet data")
 parser <- add_option(parser, c("-t", "--Sample"), type="character", 
 		     help="Sample name")
+parser <- add_option(parser, c("-o", "--out"), type="character", 
+		     help="Path to .csv to write doublet data")
 
 opt <- parse_args(parser)
-
-# opt <- list()
-# opt$SCE <- "../qc_demux/SCE/Covid_SCE.RDS"
-# opt$donorID <- "../qc_demux/demultiplexed/vartrix_vireo/SIGAF7/donor_ids.tsv"
-# opt$Sample <- "SIGAF7"
-# opt$out <- "SIGAF7_doublet_data.csv"
 
 # ---- Load Data ----
 library(DropletUtils)
