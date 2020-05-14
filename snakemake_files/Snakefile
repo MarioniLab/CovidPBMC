@@ -20,7 +20,7 @@ import re
 #############################################################################
 configfile: "CovidPBMC/config/configEBI.yaml"
 
-BASE_DIR = "/mnt/scratchb/jmlab/morgan02/Covid/"
+BASE_DIR = "/hps/nobackup/research/marioni/covid19/"
 
 workdir: BASE_DIR
 
