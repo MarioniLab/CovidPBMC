@@ -37,7 +37,7 @@ This Singularity container contains all the software necessary to reproduce the 
    apt-get -y install  libpcre3-dev
 
    #for h5
-   apt-get -y install libhdf5-dev libhdf5-cpp-100 libhdf5-100
+   apt-get -y install libhdf5-dev libhdf5-cpp-103 libhdf5-103
 
 
    #---- R Installation -----
@@ -70,8 +70,7 @@ This Singularity container contains all the software necessary to reproduce the 
 
    # This is a fix to install conda, see https://github.com/sylabs/singularity/issues/315
    # multiprocess.Semaphore() requires write access to the shared memory directory
-   rm /dev/shm
-   mkdir /dev/shm
+   mkdir -p /dev/shm
    chmod 777 /dev/shm 
 
    # conda 
