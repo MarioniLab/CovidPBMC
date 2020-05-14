@@ -12,6 +12,7 @@ parser <- add_option(parser, c("-o", "--out"), type="character",
 		     help="Path to .csv")
 parser <- add_option(parser, c("-p", "--plot"), type="character", 
 		     help="Path to QC plots")
+opt <- parse_args(parser)
 
 # ---- Load Data ----
 library(ggplot2)

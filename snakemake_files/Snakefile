@@ -55,6 +55,7 @@ rule all:
             expand(BASE_DIR + "quant.dir/{sample}_cells.txt", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "reports/{sample}_emptyDrops.pdf", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "reports/{sample}_QC.pdf", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
+            expand(BASE_DIR + "reports/{sample}_demux_QC.pdf", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             BASE_DIR + "SCE/Covid_SCE.RDS",
             expand(BASE_DIR + "genotypes/cellSNP/{sample}.vcf.gz", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "genotypes/vartrix/{sample}_alt_matrix.mtx", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
@@ -62,7 +63,8 @@ rule all:
             expand(BASE_DIR + "demultiplexed/cellSNP_vireo/{sample}", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "demultiplexed/vartrix_vireo/{sample}", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "doublet/scores/{sample}_doublet_data.csv", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
-            BASE_DIR + "reports/ADT-QC.pdf"
+            BASE_DIR + "reports/ADT-QC.pdf",
+            BASE_DIR + "doublet/doublets/Doublets.csv"
 
 #############################################################################
 # Run GEX & ADT Cell Ranger
@@ -237,6 +239,25 @@ rule run_singlecell_qc:
         "singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.qc_rscript} --matrix {input.matrix} --barcodes {input.called_cells} --sparsitythreshold {params.sparse_thresh} --umithreshold {params.umi_thresh} --mtthreshold {params.mt_thresh} --plots {output.plots} --out {output.barcodes}"
 
 #############################################################################
+# Demutliplexing QC
+#############################################################################
+rule run_demux_qc:
+    """
+    Run single-cell CITE-seq gene expression through standard QC - per sample
+    """
+    input:
+        barcodes=BASE_DIR + "quant.dir/{sample}_cells.txt",
+        whitelist=BASE_DIR + "QC/{sample}_barcode-whitelist.txt",
+        matrix=BASE_DIR + "cellranger_output/{sample}_CITE/outs/raw_feature_bc_matrix/matrix.mtx.gz",
+        donorIDs=BASE_DIR + "demultiplexed/vartrix_vireo/{sample}/donor_ids.tsv"
+    params:
+        qc_demux=config['QC']['qc_demux']
+    output:
+        plots=BASE_DIR + "reports/{sample}_demux_QC.pdf"
+    shell:
+        "singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.qc_demux} --matrix {input.matrix} --barcodes {input.barcodes} --whitelist {input.whitelist} --donorIDs {input.donorIDs} --plots {output.plots}"
+
+#############################################################################
 # Single-cell normalisation with deconvolution size factors
 #############################################################################
 rule normalise_gex:
@@ -281,6 +302,24 @@ rule run_doublet_scores:
         out=BASE_DIR + "doublet/scores/{sample}_doublet_data.csv"
     shell:
         "singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.doub_score_rscript} --SCE {input.sce} --donorID {input.donorIDs} --Sample {params.sample_id} --out {output}"
+
+#############################################################################
+# Identify doublets
+#############################################################################
+rule run_doublet_id:
+    """
+    Identify doublets based on the scores
+    """
+    input:
+        doublet_scores=expand(BASE_DIR + "doublet/scores/{sample}_doublet_data.csv", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]))
+    params:
+        doub_id_rscript=config['Doublets']['doub_id_rscript'],
+        join_scores=lambda wildcards, input: ",".join(input.doublet_scores)
+    output:
+        out=BASE_DIR + "doublet/doublets/Doublets.csv",
+        plots=directory(BASE_DIR + "doublet/plots/")
+    shell:
+        "singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.doub_id_rscript} --doubletdata {params.join_scores} --plot {output.plots} --out {output.out}"
 
 
 ###############################################################################
