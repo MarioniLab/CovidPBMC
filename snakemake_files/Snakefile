@@ -26,7 +26,7 @@ workdir: BASE_DIR
 
 ## Make sure the the test samples are commented out for running genuine samples
 ## Regex for the differnt filename components
-SAMPLES = [fx for fx in glob_wildcards(BASE_DIR + "data/fastq/{sample}.fastq.gz")][0]
+SAMPLES = [fx for fx in glob_wildcards(BASE_DIR + "test_data/fastq/{sample}.fastq.gz")][0]
 CITE_REGEX = re.compile("(\w+)_(5gex|antibody)_(S[0-9]?)_(L[0-9]+)_([R|I][1|2])_00[0-9]")
 TCR_REGEX = re.compile("(\w+)_t_(S[0-9]?)_(L[0-9]+)_([R|I][1|2])_00[0-9]")
 BCR_REGEX = re.compile("(\w+)_b_(S[0-9]?)_(L[0-9]+)_([R|I][1|2])_00[0-9]")
@@ -73,8 +73,8 @@ rule run_CITE_cellranger:
     Run CellRanger to process gene expression and Antibody libraries
     """
     input: # input needs to be the feature reference in case this is different
-        libs=BASE_DIR + "data/lib_files/{sample}_5gex_protein_library.csv",
-        feature_refs=BASE_DIR + "data/ref_files/{sample}_5gex_protein_feature_ref.csv"
+        libs=BASE_DIR + "test_data/lib_files/{sample}_5gex_protein_library.csv",
+        feature_refs=BASE_DIR + "test_data/ref_files/{sample}_5gex_protein_feature_ref.csv"
     params:
         sampname="{sample}_CITE",
         transcriptome=config['hg38_SarsCov2']['referenceFolder'],
@@ -97,11 +97,11 @@ rule run_TCR_cellranger:
     Run CellRanger to process TCR libraries
     """
     input:
-        files=["data/fastq/{filename}.fastq.gz".format(filename=TCR_REGEX.search(tx).group(0)) for tx in TCR_SAMPLES]
+        files=["test_data/fastq/{filename}.fastq.gz".format(filename=TCR_REGEX.search(tx).group(0)) for tx in TCR_SAMPLES]
     params:
         sampname=list(set(["{filename}_t".format(filename=TCR_REGEX.search(rx).group(1)) for rx in TCR_SAMPLES])),
         reference=config['hg38_vdj']['referenceFolder'],
-        fastq_dir="{wdir}/data/fastq".format(wdir=BASE_DIR),
+        fastq_dir="{wdir}/test_data/fastq".format(wdir=BASE_DIR),
         cellranger_out="cellranger_output/",
         samp_id="{sample}_TCR"
     output:
@@ -117,7 +117,7 @@ rule run_BCR_cellranger:
     Run CellRanger to process BCR libraries
     """
     input:
-        files=["data/fastq/{filename}.fastq.gz".format(filename=BCR_REGEX.search(bx).group(0)) for bx in BCR_SAMPLES] 
+        files=["test_data/fastq/{filename}.fastq.gz".format(filename=BCR_REGEX.search(bx).group(0)) for bx in BCR_SAMPLES] 
     params:
         sampname=list(set(["{filename}_b".format(filename=BCR_REGEX.search(rx).group(1)) for rx in BCR_SAMPLES])),
         reference=config['hg38_vdj']['referenceFolder'],
