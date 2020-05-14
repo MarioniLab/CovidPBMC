@@ -36,7 +36,7 @@ BCR_SAMPLES = [bx for bx in SAMPLES if BCR_REGEX.search(bx)]
 
 #Load Singularity 3.5 module for each shell command
 # already loaded on the CI server
-#shell.prefix("module load singularity/3.5.0; ")
+shell.prefix("module load singularity/3.5.0; ")
 
 #############################################################################
 # Define a set of tasks to run locally
@@ -61,6 +61,7 @@ rule all:
             expand(BASE_DIR + "genotypes/vartrix/{sample}_ref_matrix.mtx", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "demultiplexed/cellSNP_vireo/{sample}", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "demultiplexed/vartrix_vireo/{sample}", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
+            expand(BASE_DIR + "doublet/scores/{sample}_doublet_data.csv", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             BASE_DIR + "reports/ADT-QC.pdf"
 
 #############################################################################
@@ -262,6 +263,25 @@ rule normalise_gex:
     shell:
         """singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.norm_rscript} --matrixlist {params.join_matrices} --barcodeslist {params.join_barcodes} \
         --whitelists {params.join_whitelist} --sparsity {params.gene_sparse} --output {output.sce} --sizefactors {output.sizefactors} --plots {output.plots} {params.qc_flag} {params.all_positive}"""
+
+#############################################################################
+# Computation of doublet scores
+#############################################################################
+rule run_doublet_scores:
+    """
+    Compute sample-wise doublet information
+    """
+    input:
+        sce=BASE_DIR + "SCE/Covid_SCE.RDS",
+        donorIDs=BASE_DIR + "demultiplexed/vartrix_vireo/{sample}/donor_ids.tsv"
+    params:
+        doub_score_rscript=config['Doublets']['doub_score_rscript'],
+	sample_id="{sample}"
+    output:
+        out=BASE_DIR + "doublet/scores/{sample}_doublet_data.csv"
+    shell:
+        "singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.doub_score_rscript} --SCE {input.sce} --donorID {input.donorIDs} --Sample {params.sample_id} --out {output}"
+
 
 ###############################################################################
 # Peform ADT-specific diagnostic for seq coverage, etc
