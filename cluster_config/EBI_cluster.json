@@ -39,11 +39,39 @@
         "memory"     : 48000,
         "resources"  : "\"select[mem>4800] rusage[mem=4000]\""
     },
-    "run_scGenotyping":
+    "run_scGenotyping_vartrix":
     {
         "nCPUs"      : 12,
         "threads"    : 12000,
         "memory"     : 100000,
         "resources"  : "\"select[mem>96000] rusage[mem=96000]\""
+    },
+    "run_scGenotyping_cellSNP":
+    {
+        "nCPUs"      : 12,
+        "threads"    : 12000,
+        "memory"     : 100000,
+        "resources"  : "\"select[mem>96000] rusage[mem=96000]\""
+    },
+    "normalise_gex":
+    {
+        "nCPUs"      : 1,
+        "threads"    : 12000,
+        "memory"     : 48000,
+        "resources"  : "\"select[mem>48000] rusage[mem=32000]\""
+    },
+    "demultiplex_cells_vartrix":
+    {
+        "nCPUs"      : 12,
+        "threads"    : 12000,
+        "memory"     : 100000,
+        "resources"  : "\"select[mem>96000] rusage[mem=96000]\""
+    },
+    "demultiplex_cells_cellSNP":
+    {
+        "nCPUs"      : 12,
+        "threads"    : 12000,
+        "memory"     : 160000,
+        "resources"  : "\"select[mem>16000] rusage[mem=160000]\""
     }
 }

@@ -1,4 +1,3 @@
-
 ####################
 # Deconvolution size-factor normalisation
 # for single-cell Covid19 PBMCs
@@ -29,14 +28,11 @@ parser <- add_option(parser, c("-p", "--plots"), type="character",
 parser <- add_option(parser, c("-o", "--output"), type="character",
                      help="Path to output SingleCellExperiment object")
 
-parser <- add_option(parser, c("-q", "--outputqc"), type="logical", action="store_true",
+parser <- add_option(parser, c("-q", "--outputqc"), type="logical", action="store_true", default=FALSE,
                      help="Output normalised data for QC-failed cells as well")
 
 parser <- add_option(parser, c("-f", "--sizefactors"), type="character",
        	  	     help="Output path for size factors")
-
-parser <- add_option(parser, c("-n", "--samplenames"), type="character",
-                     help="A list of sample names to prefix to cell barcodes - in the same order as the input data")
 
 parser <- add_option(parser, c("-g", "--force"), type="logical", action="store_true", default=FALSE,
                      help="Force size factors to be positive")
@@ -56,49 +52,68 @@ theme_set(theme_cowplot())
 # read in barcode whitelist to remove for estimating size factors
 # estimate size factors with and without QC-fail cell barcodes
 
-# this should be a space-separated list of matrices
-barcode.list <- strsplit(opt$barcodeslist, split=" ", fixed=TRUE)
-cells.list <- lapply(barcode.list, FUN=function(FB) read.csv(FB, stringsAsFactors=FALSE, header=FALSE)[,1])
-samp.names <- unlist(strsplit(opt$samplenames, split=" ", fixed=TRUE))
+# this should be a comma-separated list of matrices
+barcode.list <- unlist(strsplit(opt$barcodeslist, split=",", fixed=TRUE))
+samp.names <- lapply(barcode.list, FUN=function(P) gsub(unlist(lapply(strsplit(P, fixed=TRUE, split="/"), 
+       	  		       		       				      FUN=function(sP) paste0(sP[length(sP)]))), pattern="_cells\\.txt", replacement=""))
+samp.names <- as.factor(unlist(samp.names))
+cells.list <- lapply(barcode.list, FUN=function(FB) read.table(FB, stringsAsFactors=FALSE, header=FALSE)[,1])
+
+# to keep a consistent ordering, this needs to become a factor - it also needs to be learnt from the filenames
+# rather than strictly relying on the input order
 names(cells.list) <- samp.names
-message(paste0("Found ", length(unlist(cells.list)), " total cell barcodes across", length(samp.names), " samples"))
+message(paste0("Found ", length(unlist(cells.list)), " total cell barcodes across ", length(samp.names), " samples"))
 
 # Read in raw counts
 message("Making single cell object")
-fldr.list <- lapply(strsplit(opt$matrixlist, split=" ", fixed=TRUE), dirname)
+fldr.list <- unlist(lapply(strsplit(opt$matrixlist, split=",", fixed=TRUE), dirname))
 sce.list <- lapply(fldr.list, FUN=function(FM) read10xCounts(FM, col.names=TRUE))
 names(sce.list) <- samp.names
 
 # samples may have the same barcodes - need to add a sample-specific prefix
 pass_bcs <- list()
-for(x in seq_along(samp.names)){
-    samp.x <- samp.names[x]
+for(x in seq_along(levels(samp.names))){
+    samp.x <- levels(samp.names)[x]
     bcs.x <- paste(samp.x, cells.list[[samp.x]], sep="_")
     pass_bcs[[samp.x]] <- bcs.x
 }
 
 # Subset to called cells
-for(x in seq_along(samp.names)){
-    samp.x <- samp.names[x]
+for(x in seq_along(levels(samp.names))){
+    samp.x <- levels(samp.names)[x]
     sce.cols <- paste(samp.x, colnames(sce.list[[samp.x]]), sep="_")
     colnames(sce.list[[samp.x]]) <- sce.cols
 }
 
+message("Subsetting to common features")
+# need to make sure the same genes are present in both SCE lists - what if the antibody data are different?
+# This will subset to just the common GEX features
+features_sce.list <- lapply(sce.list, FUN=function(Q) rowData(Q)$ID[rowData(Q)$Type == "Gene Expression"])
+common.features <- Reduce(x=features_sce.list, f=function(x, y) intersect(x, y))
+message(paste0(length(common.features), " common features found"))
+
 message("Combining individual SCE objects together")
-sce <- do.call(cbind, sce.list)
+sce <- do.call(cbind, lapply(samp.names, FUN=function(SQ) sce.list[[SQ]][common.features, ]))
+
+# get the list of antibody features in each data set
+ab.sce.list <- lapply(samp.names, FUN=function(Q) sce.list[[Q]][rowData(sce.list[[Q]])$Type == "Antibody Capture", ])
+
+names(ab.sce.list) <- levels(samp.names)
+ab.sce.list <- lapply(levels(samp.names), FUN=function(SP) ab.sce.list[[SP]][, pass_bcs[[SP]]])
+names(ab.sce.list) <- levels(samp.names)
 
 message("Subsetting called cells")
 sce <- sce[, unlist(pass_bcs)]
 message(paste0(ncol(sce), " called cells in the SCE object"))
 
 # read in barcode whitelist - a space-separated list of files
-whitefile.list <- strsplit(opt$whitelists, split=" ", fixed=TRUE)
+whitefile.list <- unlist(strsplit(opt$whitelists, split=",", fixed=TRUE))
 white.list <- lapply(whitefile.list, FUN=function(FW) read.table(FW, sep="\t", stringsAsFactors=FALSE, header=FALSE)[, 1])
 names(white.list) <- samp.names
 
 white_bcs <- list()
-for(x in seq_along(samp.names)){
-    samp.x <- samp.names[x]
+for(x in seq_along(levels(samp.names))){
+    samp.x <- levels(samp.names)[x]
     white.x <- paste(samp.x, white.list[[samp.x]], sep="_")
     white_bcs[[samp.x]] <- white.x    
 }
@@ -109,8 +124,14 @@ if(opt$outputqc){
     message(paste0("Including ", length(black.list), " QC-failed cells for normalisation"))
     sce.fail <- sce
     sce <- sce[, unlist(white_bcs)]
+    failab.sce.list <- ab.sce.list
+    # I think this step might switch the names around - grr!
+    ab.sce.list <- lapply(samp.names, FUN=function(SP) ab.sce.list[[SP]][, white_bcs[[SP]]])
+    names(ab.sce.list) <- samp.names
 } else{
     sce <- sce[, unlist(white_bcs)]
+    ab.sce.list <- lapply(samp.names, FUN=function(SP) ab.sce.list[[SP]][, white_bcs[[SP]]])
+    names(ab.sce.list) <- samp.names
 }
 
 # take an input gene X cell (barcode) dataframe of
@@ -152,6 +173,7 @@ message(paste0("Estimating size factors using ", size.inc, " cell increments"))
 sce <- computeSumFactors(sce,
                          max.cluster.size=max.size,
                          positive=opt$force,
+			 subset.row=keep_genes,
                          assay.type='counts', clusters=clusters)
   
 # the scater function is normalise, not normalize
@@ -176,9 +198,30 @@ s.factors <- data.frame("CellID"=colnames(sce), "SumFactor"=sizeFactors(sce))
 # derive the output for size factors
 write.table(s.factors, file=opt$sizefactors, quote=FALSE, sep="\t", row.names=FALSE)
 
+message("Output antibody SCE for each sample")
+for(x in seq_along(levels(samp.names))){
+    samp.x <- levels(samp.names)[x]
+    ab.sce.x <- ab.sce.list[[samp.x]]
+    gsub(opt$output, pattern="\\.RDS", replacement="_QCFail.RDS")
+    out.ab.sce <- gsub(opt$output, pattern="\\.RDS", replacement=paste0("-", samp.x, "_Ab.RDS"))
+    # add size factors and normalise
+    x.cells <- colnames(ab.sce.x)
+    sizeFactors(ab.sce.x) <- sizeFactors(sce[, x.cells])
+    ab.sce.x <- scater::normalize(ab.sce.x)
+    saveRDS(ab.sce.x, file=out.ab.sce)
+}
+
+good.cell.libs <- log10(colSums(counts(sce)))
+good.cell.df <- data.frame("CellID"=colnames(sce), "LibSize"=good.cell.libs, "SumFactor"=sizeFactors(sce),
+	     		   "QC.Status"="Pass", "Sample"=gsub(colnames(sce), pattern="([a-zA-Z0-9]+)_([ATCG]+)-1", replacement="\\1"))
+
+ab.libs.list <- lapply(ab.sce.list, FUN=function(SP) data.frame("CellID"=colnames(SP), "Ab.LibSize"=log10(colSums(counts(SP)))))
+ab.libs <- do.call(rbind.data.frame, ab.libs.list)
+good.ab.cell.df <- merge(good.cell.df, ab.libs, by='CellID')
+
 # purge the old sce object
 sink(file="/dev/null")
-rm(list=c("sce"))
+rm(list=c("sce", "clusters"))
 gc()
 sink(file=NULL)
 
@@ -187,51 +230,120 @@ if(opt$outputqc){
 	message("Estimating size factors for QC-failed cells")
 	n.cells <- ncol(sce.fail)
 	n.genes <- nrow(sce.fail)
-  
-	gene_sparsity <- (apply(counts(sce.fail) == 0, MARGIN = 1, sum)/n.cells)
-	keep_genes <- gene_sparsity < opt$sparsity
 
-	# set cluster size to 1% of data
-	cluster.size <- ceiling(ncol(sce.fail) * 0.05)
-  
-	if(ncol(sce.fail)> 300){
-  	    clusters <- quickCluster(sce.fail, min.size=cluster.size,
+	# set cluster size to 10% of data
+	# keep the same genes as previous
+	cluster.size <- ceiling(ncol(sce.fail) * 0.1)
+
+	message("Quick clustering on all cells")
+	# for some reason there is an error here as the internal quick-clustering 
+	# does it normalised values, so a quick and dirty SF estimate gives -ve SFs
+	# This puts a bit of a spanner in the works.
+	# Can use.ranks get around this?
+	# I'll remove the smallest 5% of QC-failed cells
+	tryCatch(
+  	clusters <- quickCluster(sce.fail, min.size=cluster.size,
   	                             subset.row=keep_genes,
-				     method="igraph")
-	    max.size <- floor(cluster.size/2)
-	} else if(ncol(sce.fail) < 100) {
-	    clusters <- quickCluster(sce.fail, min.size=cluster.size, 
-  	    	       		     subset.row=keep_genes,
-                     		     method="igraph")
-	    max.size <- floor(cluster.size/2) + 1
-        } else{
-	    clusters <- quickCluster(sce.fail, min.size=cluster.size,
-  	           		     subset.row=keep_genes)
-	    max.size <- floor(cluster.size/2)
-	}
+				     use.ranks=TRUE,
+				     method="igraph"),
+        error = function(c){
+	   message("Negative size factors in quick cluster, removing smallest 5% of QC-failed cells")
+	   col.sums <- colSums(counts(sce.fail))
+	   tp.cells <- floor(n.cells * 0.05)
+	   message(paste0("Removing ", tp.cells, " cells"))
+	   tp.thresh <- max(col.sums[order(col.sums, decreasing=FALSE)][1:tp.cells])
 
+	   sce.fail <- sce.fail[, col.sums > tp.thresh]
+	   message(paste0(ncol(sce.fail), " cells remaining"))
+	   clusters <- quickCluster(sce.fail, min.size=cluster.size,
+                                     subset.row=keep_genes,
+                                     use.ranks=FALSE,
+                                     method="igraph")
+           return(clusters)
+	   }, finally = {
+	      if(exists("clusters")){
+	          pass
+	      } else{
+	      message("Creating quick clusters")
+	      col.sums <- colSums(counts(sce.fail))
+	      tp.cells <- floor(n.cells * 0.05)
+	      tp.thresh <- max(col.sums[order(col.sums, decreasing=FALSE)][1:tp.cells])
+	      sce.fail <- sce.fail[, col.sums > tp.thresh]
+
+	      clusters <- quickCluster(sce.fail, min.size=cluster.size,
+                                     subset.row=keep_genes,
+                                     use.ranks=TRUE,
+                                     method="igraph")
+	      }
+	   }
+	)
+	message("Quick clustering done")
+	max.size <- floor(cluster.size/2)
+
+	message("Computing sum factors")
 	# change the window size in 50% increments
+	# need to force positive size-factors for the cells that fail QC
 	size.inc <- ceiling(max.size * 0.5)
 	sce.fail <- computeSumFactors(sce.fail,
                          max.cluster.size=max.size,
-                         positive=opt$force,
+                         positive=TRUE,
+			 subset.row=keep_genes,
                          assay.type='counts', clusters=clusters)
   
 	# the scater function is normalise, not normalize
 	# I appreciate the British spelling, but this might cause a clash
 	# with igraph for those not familiar
+	message("Normalising QC-failed cells")
 	sce.fail <- normalize(sce.fail)
 	fail.out.sce <- gsub(opt$output, pattern=".RDS", replacement="_QCFail.RDS")
 	message(paste0("Writing QC-failed SCE object to: ", fail.out.sce))  
 	saveRDS(sce.fail, file=fail.out.sce)
 
 	# output the sum factors in addition
-	print(dim(sce.fail))
 	s.factors <- data.frame("CellID"=colnames(sce.fail), "SumFactor"=sizeFactors(sce.fail))
 	out.fail.factors <- gsub(opt$sizefactors, pattern="\\.tsv", replacement="_QCFail.tsv")
-	message(paste0("Writing QC-failed size factors to: ", out.fail.factors))  
+	message(paste0("Writing QC-failed size factors to: ", out.fail.factors))
 	write.table(s.factors, file=out.fail.factors, quote=FALSE, sep="\t", row.names=FALSE)
+
+	all.cell.libs <- log10(colSums(counts(sce.fail)))
+	all.cell.df <- data.frame("CellID"=colnames(sce.fail), "LibSize"=all.cell.libs, "SumFactor"=sizeFactors(sce.fail),
+		       		  "Sample"=gsub(colnames(sce.fail), pattern="([a-zA-Z0-9]+)_([ATCG]+)-1", replacement="\\1")) 
+
+	message("Collating Ab libraries on QC-failed cells")
+	all.ab.libs.list <- lapply(failab.sce.list, FUN=function(SP) data.frame("CellID"=colnames(SP), "Ab.LibSize"=log10(colSums(counts(SP)))))
+	all.ab.libs <- do.call(rbind.data.frame, all.ab.libs.list)
+	all.ab.cell.df <- merge(all.cell.df, all.ab.libs, by='CellID')
+        all.ab.cell.df$QC.Status <- "Fail"
+	all.ab.cell.df$QC.Status[all.ab.cell.df$CellID %in% good.cell.df$CellID] <- "Pass"
+	fail.ab.cell.df <- all.ab.cell.df[all.ab.cell.df$QC.Status %in% c("Fail"), ]
+	out.cell.df <- do.call(rbind.data.frame, list("pass"=good.ab.cell.df, "fail"=fail.ab.cell.df))
+} else{
+    out.cell.df <- good.cell.df
 }
 
 # what plots do we want to generate? Distributions of size factors with and without QC'd cells?
-# distribution of gene sparsity for the same?
+# distribution of gene sparsity for the same? Plot of sum factors vs. lib sizes for GEX and Abs
+title <- ggdraw() +
+            draw_label(paste0("Comparisons of library sizes across samples"),
+	    		fontface="bold", x=0, hjust=0, size=20)
+
+lib.plot <- ggplot(out.cell.df, aes(x=LibSize, y=SumFactor, colour=QC.Status)) +
+	           geom_point() +
+		   theme_bw() + facet_wrap(~Sample) +
+		   labs(title="Library Size vs. Sum Factor")
+
+ablib.plot <- ggplot(out.cell.df, aes(x=LibSize, y=Ab.LibSize, colour=QC.Status)) +
+	             geom_point() +
+		     theme_bw() + facet_wrap(~Sample) +
+		     labs(title="Library Size vs. Ab Library Size")
+
+sfactor.plot <- ggplot(out.cell.df, aes(x=Ab.LibSize, y=SumFactor, colour=QC.Status)) +
+	               geom_point() +
+		       theme_bw() + facet_wrap(~Sample) +
+		       labs(title="Ab Library Size vs. Sum Factor")
+
+out.plots <- plot_grid(lib.plot, ablib.plot, sfactor.plot,
+	     	       ncol=2)
+pout <- plot_grid(title, out.plots, ncol=1, rel_heights=c(0.1, 1))
+
+ggsave(filename=opt$plots, plot=pout, width=12, height=12)

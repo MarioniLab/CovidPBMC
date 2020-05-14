@@ -1,14 +1,16 @@
-# # Reference files
+# Reference files
 base:
-    dir: "/hps/nobackup/research/marioni/covid19"
+    dir: "/hps/nobackup/research/marioni/covid19/"
     run: "TEST"
 
 singularity:
-    img: "/hps/nobackup/research/marioni/covid19/singularity/CovidPBMC.sif"
+    img: "/hps/nobackup/research/marioni/covid19//singularity/CovidPBMC.sif"
+    preamble: " "
 
 hg38_SarsCov2:
     # the cellranger format file with human and Sars-CoV2 genome sequences and annotations
-    referenceFolder: "/hps/nobackup/research/marioni/covid19/genome_refs/hg38_SarsCov2"
+    referenceFolder: "/hps/nobackup/research/marioni/covid19//genome_refs/hg38_SarsCov2"
+    fasta: "/hps/nobackup/research/marioni/covid19//genome_refs/hg38_SarsCov2/fasta/genome.fa"
 
 hg38_vdj:
     # standard 10X Genomics pre-built Ig and TCR loci
@@ -23,7 +25,7 @@ emptyDrops:
     emptydrops_rscript: "/hps/nobackup/research/marioni/covid19/CovidPBMC/src/call_cells.R"
 
 genotyper:
-    ref_vcf: "/hps/nobackup/research/marioni/covid19/genotypes/genomeProject/genome1K.phase3.SNP_AF5e2.chr1toX.hg38.vcf" # input a reference VCF, e.g. 1K Genomes
+    ref_vcf: "/hps/nobackup/research/marioni/covid19/genotypes/genomeProject/hg38/genome1K.phase3.SNP_AF5e2.chr1toX.withoutChr.vcf.gz" # input a reference VCF, e.g. 1K Genomes
     min_MAF: 0.1
     min_Count: 20
 
@@ -40,7 +42,10 @@ Norm:
     gene_sparse: 0.95 # the percentages of 0's to tolerate per gene prior to size factor estimation
     norm_rscript: "/hps/nobackup/research/marioni/covid19/CovidPBMC/src/norm_data.R"
     qc_flag: "--outputqc"
-    positive_factors: "--force" # force size factors to be positive
+    positive_factors: "" # force size factors to be positive
+
+ADT:
+    qc_rscript: ""
 
 FinalCheck:
     permission_script: "/hps/nobackup/research/marioni/covid19/CovidPBMC/src/check_permissions.sh"

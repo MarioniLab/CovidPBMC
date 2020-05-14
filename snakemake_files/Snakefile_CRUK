@@ -18,9 +18,10 @@ import re
 # nohup nice -19 snakemake -s CovidPBMC/snakemake_files/Snakefile --cluster "sbatch --cpus-per-taks={cluster.nCPUs} --nodes={cluster.nodes} --job-name={cluster.name} --mem={cluster.memory} --output={cluster.output} --error={cluster.error} " --cluster-config CovidPBMC/cluster_config/CRUK_cluster.json --jobs=100 --latency-wait=250 --verbose --rerun-incomplete -rp&
 
 #############################################################################
-configfile: "CovidPBMC/config/configEBI.yaml"
+# make sure no trailing spaces after key:value pairs in the config yaml - this took me >1hour to figure out!!
+configfile: "CovidPBMC/config/configCRUK.yaml"
 
-BASE_DIR = "/hps/nobackup/research/marioni/covid19/"
+BASE_DIR = "/mnt/scratchb/jmlab/morgan02/Covid/"
 
 workdir: BASE_DIR
 
@@ -263,9 +264,10 @@ rule normalise_gex:
         """singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.norm_rscript} --matrixlist {params.join_matrices} --barcodeslist {params.join_barcodes} \
         --whitelists {params.join_whitelist} --sparsity {params.gene_sparse} --output {output.sce} --sizefactors {output.sizefactors} --plots {output.plots} {params.qc_flag} {params.all_positive}"""
 
+
 ###############################################################################
 # Peform ADT-specific diagnostic for seq coverage, etc
-############################################################################## 
+##############################################################################
 rule run_adt_qc:
     """
     Run QC diagnostics on ADT libraries to check for sufficient coverage and balance
@@ -279,6 +281,7 @@ rule run_adt_qc:
         plots=BASE_DIR + "reports/ADT-QC.pdf"
     shell:
         """ singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.adt_qc_rscript} --CITEdirectory {input.cellranger_dir} --ADTSCE {input.in_sce} --plots {output.plots}"""
+
 
 #############################################################################
 # Run final file permission checks
