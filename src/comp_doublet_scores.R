@@ -88,7 +88,7 @@ ump <- umap(as.matrix(t(logcounts(sce)[hvgs,])), random_state=42)
 umap1 <- ump$layout[,1]
 umap2 <- ump$layout[,2]
 
-out <- data.frame("Barcode"=sce$Barcode,
+out <- data.frame("Barcode"=colnames(sce),
 		  "Sample"=opt$Sample,
 		  "Cluster"=cluster,
 		  "UMAP1"=umap1,
@@ -96,7 +96,7 @@ out <- data.frame("Barcode"=sce$Barcode,
 		  "DbltScore"=doublet.scores,
 		  "UmiSums"=colSums(counts(sce)))
 
-rownames(donor.id) <- donor.id$cell
+rownames(donor.id) <- paste0(opt$Sample,"_",donor.id$cell)
 out$Donor <- donor.id[out$Barcode,"donor_id"]
 
 # Save Data
