@@ -37,12 +37,17 @@ QC:
     umi_thresh: 1000 # the minimum number of detected UMIs per cell to keep
     sparsity: 0.99 # the percentage of 0's to tolerate per single-cell (sparsity)
     qc_rscript: "/hps/nobackup/research/marioni/covid19/CovidPBMC/src/qc_cells.R"
+    qc_demux: "/hps/nobackup/research/marioni/covid19/CovidPBMC/src/qc_demux.R"
 
 Norm:
     gene_sparse: 0.95 # the percentages of 0's to tolerate per gene prior to size factor estimation
     norm_rscript: "/hps/nobackup/research/marioni/covid19/CovidPBMC/src/norm_data.R"
     qc_flag: "--outputqc"
     positive_factors: "" # force size factors to be positive
+
+Doublets:
+    doub_score_rscript: "/hps/nobackup/research/marioni/covid19/CovidPBMC/src/comp_doublet_scores.R"
+    doub_id_rscript: "/hps/nobackup/research/marioni/covid19/CovidPBMC/src/identify_doublets.R"
 
 ADT:
     qc_rscript: ""

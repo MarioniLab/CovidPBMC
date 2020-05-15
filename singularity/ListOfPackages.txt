@@ -30,6 +30,7 @@ plyr
 randomForest
 RColorBrewer
 reshape2
+reldist
 Rtsne
 rmarkdown
 SingleCellExperiment
