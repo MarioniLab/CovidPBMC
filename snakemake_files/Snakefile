@@ -10,8 +10,7 @@ import re
 # bonafide cells are called outside of Cell Ranger using emptyDrops.
 # The final steps are single-cell QC, normalisation and report generation
 # Usage:
-# EBI:
-# nohup nice -19 snakemake -s CovidPBMC/snakemake_files/Snakefile --cluster "bsub -q research-rh74 -M {cluster.memory} -R {cluster.resources} -n {cluster.nCPUs} -T {cluster.threads} 
+# EBI: nohup nice -19 snakemake -s CovidPBMC/snakemake_files/Snakefile --cluster "bsub -q research-rh74 -M {cluster.memory} -R {cluster.resources} -n {cluster.nCPUs} -T {cluster.threads} 
 #                        -J {cluster.name} -e {cluster.error} -o {cluster.output}" --cluster-config CovidPBMC/cluster_config/cluster.json --jobs=100 --latency-wait=250 --verbose --rerun-incomplete -rp&
 
 # CRUK
@@ -198,10 +197,12 @@ rule demultiplex_cells_vartrix:
         ref_mtx=BASE_DIR + "genotypes/vartrix/{sample}_ref_matrix.mtx",
         alt_mtx=BASE_DIR + "genotypes/vartrix/{sample}_alt_matrix.mtx",
         barcodes=BASE_DIR + "quant.dir/{sample}_cells.txt"
+    params:
+        hg38_vcf=config['genotyper']['ref_vcf']
     output:
         outs=directory(BASE_DIR + "demultiplexed/" + "vartrix_vireo/" + "{sample}")
     shell:
-        "singularity exec {config[singularity][preamble]} {config[singularity][img]} vireo --vartrixData {input.alt_mtx},{input.ref_mtx},{input.barcodes} --nDonor 4 --outDir {output} --randSeed 42 --noPlot" 
+        "singularity exec {config[singularity][preamble]} {config[singularity][img]} vireo --vartrixData {input.alt_mtx},{input.ref_mtx},{input.barcodes},{params.hg38_vcf} --nDonor 4 --outDir {output} --randSeed 42 --noPlot" 
 
 #############################################################################
 # Run single-cell de-multiplexing by genotype with vireo using cellSNP output
