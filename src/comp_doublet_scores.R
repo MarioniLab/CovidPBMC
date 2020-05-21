@@ -56,10 +56,19 @@ sce <- readRDS(opt$SCE)
 
 donor.id <- read.table(opt$donorID, stringsAsFactors=FALSE, header=TRUE)
 
+# Subset to Sample of interest
+sce.full <- sce[,grepl(opt$Sample,colnames(sce))]
+
+# Subset donor.id to QC pass
+donor.id <- donor.id[donor.id$cell %in% sce.full$Barcode,]
+
 # ---- DoubletScores ----
 
-# Subset to Sample of interest
-sce <- sce[,grepl(opt$Sample,colnames(sce))]
+# This is only calculated on non-doublets 
+nondoubs <- donor.id$cell[donor.id$donor_id!="doublet"]
+nondoubs <- paste0(opt$Sample,"_",nondoubs)
+
+sce <- sce[,nondoubs]
 
 # Highly variable genes
 dec.var <- modelGeneVar(sce)
