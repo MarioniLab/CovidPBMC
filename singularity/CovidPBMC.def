@@ -45,6 +45,30 @@ This Singularity container contains all the software necessary to reproduce the 
    #For python-rocksdb
    apt-get -y install libsnappy-dev zlib1g-dev libbz2-dev libgflags-dev liblz4-dev libzstd-dev
 
+   #---- Python -----
+
+   # This is a fix to install conda, see https://github.com/sylabs/singularity/issues/315
+   # multiprocess.Semaphore() requires write access to the shared memory directory
+   # Whether the folder exists seems to be dependent on the host env..
+   rm -rf /dev/shm
+   mkdir -p /dev/shm
+   chmod 777 /dev/shm 
+
+   # conda 
+   curl -sSL https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -o /tmp/miniconda.sh \
+   && bash /tmp/miniconda.sh -bfp /miniconda \
+   && conda install -y python=3\ \
+   && conda update conda
+   PATH="/miniconda/bin:$PATH"
+
+   # Install conda packages
+   conda install numpy scipy cython numba matplotlib scikit-learn h5py seaborn statsmodels 
+   conda install -c conda-forge bsddb3 
+   pip install -U cellSNP
+   pip install -U vireoSNP
+   #uwsgi crashes if installed through pip 
+   conda install -c conda-forge uwsgi
+
    #---- R Installation -----
 
    #ubuntu 18.04 specific issue for apt-get build-dep, this is required to build R from source
@@ -69,29 +93,6 @@ This Singularity container contains all the software necessary to reproduce the 
 
    #install CellRanger
    tar -xzf cellranger-3.1.0.tar.gz
-
-
-   #---- Python -----
-
-   # This is a fix to install conda, see https://github.com/sylabs/singularity/issues/315
-   # multiprocess.Semaphore() requires write access to the shared memory directory
-   mkdir -p /dev/shm
-   chmod 777 /dev/shm 
-
-   # conda 
-   curl -sSL https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -o /tmp/miniconda.sh \
-   && bash /tmp/miniconda.sh -bfp /miniconda \
-   && conda install -y python=3\ \
-   && conda update conda
-   PATH="/miniconda/bin:$PATH"
-
-   # Install conda packages
-   conda install numpy scipy cython numba matplotlib scikit-learn h5py seaborn statsmodels 
-   conda install -c conda-forge bsddb3 
-   pip install -U cellSNP
-   pip install -U vireoSNP
-   #uwsgi crashes if installed through pip 
-   conda install -c conda-forge uwsgi
 
    #---- Other ----
 
@@ -155,7 +156,7 @@ This Singularity container contains all the software necessary to reproduce the 
    PATH="/miniconda/bin:$PATH"
    PATH="$PATH:/utils/"
    PATH="$PATH:/utils/bwa"
-   PATH="$PATH:/utils/mccortex"
+   PATH="$PATH:/utils/mccortex/bin"
    PATH="$PATH:/utils/BIGSI"
    export PATH
    # Other ENV
