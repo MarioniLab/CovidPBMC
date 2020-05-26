@@ -13,14 +13,14 @@
 
 # 1. Is the most reliable one (assuming we trust vireo) and will identify type A and B
 # 2. Less reliable, i.e. wouldn't trust on a per cell basis, better at identifying B than A
-# 3. Unexpected combinations of antibodies.Only useful for identifying B. Problem is we need to define the number of UMIs per antibody that we assume represents a sginal.
+# 3. Unexpected combinations of antibodies. Only useful for identifying B. 
 
-# For now I will leave out 3, as this still depends on denoising the ADT library and might need some more fiddeling. Will have to see if this is something that we only use post-pipeline when annotating cell types.
+# For now I will leave out 3. Will have to see if this is something that we only use post-pipeline when annotating cell types.
 
 ### Strategy
 # Per Sample (Sample = lane on the 10x):
-# 1. Estimate per-cell doublet score using scran
-# 2. Highly resolved clustering 
+# 1. Estimate per-cell doublet score using scran (excluding the vireo doublets)
+# 2. Highly resolved clustering (tried walktrap with small step size, two-step louvain seems better)
 # 3. Cells belonging to clusters with either high average cluster score or high number of vireo doublets are labeled as doublets
 # 4. Finally combine all the samples and cluster together. Again clusters that have high number of previously flagged clusters are most likely doublets.
 # 5. Remove Cells that were flagged as clusters by either, vireo, Step 3 or Step 4.
@@ -40,7 +40,7 @@ parser <- add_option(parser, c("-t", "--Sample"), type="character",
 		     help="Sample name")
 parser <- add_option(parser, c("-o", "--out"), type="character", 
 		     help="Path to .csv to write doublet data")
-
+ 
 opt <- parse_args(parser)
 
 # ---- Load Data ----
@@ -57,10 +57,10 @@ sce <- readRDS(opt$SCE)
 donor.id <- read.table(opt$donorID, stringsAsFactors=FALSE, header=TRUE)
 
 # Subset to Sample of interest
-sce.full <- sce[,grepl(opt$Sample,colnames(sce))]
+sce <- sce[,grepl(opt$Sample,colnames(sce))]
 
 # Subset donor.id to QC pass
-donor.id <- donor.id[donor.id$cell %in% sce.full$Barcode,]
+donor.id <- donor.id[donor.id$cell %in% sce$Barcode,]
 
 # ---- DoubletScores ----
 
@@ -68,45 +68,94 @@ donor.id <- donor.id[donor.id$cell %in% sce.full$Barcode,]
 nondoubs <- donor.id$cell[donor.id$donor_id!="doublet"]
 nondoubs <- paste0(opt$Sample,"_",nondoubs)
 
-sce <- sce[,nondoubs]
+sce.nodoub <- sce[,nondoubs]
 
 # Highly variable genes
-dec.var <- modelGeneVar(sce)
-hvgs <- getTopHVGs(dec.var, prop=0.5)  # this is for the sake of speed
+dec.var <- modelGeneVar(sce.nodoub)
+hvgs <- getTopHVGs(dec.var)
 
 # Doublet Score
 set.seed(42)
-doublet.scores <- doubletCells(sce,BSPARAM=IrlbaParam(),
+doublet.scores <- doubletCells(sce.nodoub,BSPARAM=IrlbaParam(),
 		     subset.row=hvgs)
 
-# Quick SNN Graph 
+# ---- Per-Sample-Clustering ----
+
+# Quick SNN Graph note this is done including vireo doublets
+
+dec.full <- modelGeneVar(sce)
+hvgs.full <- getTopHVGs(dec.full)
 set.seed(42)
+
+# PCA
+sce <- denoisePCA(sce, technical=dec.full,
+		       subset.row=hvgs,
+		       BSPARAM=BiocSingular::IrlbaParam())
+# Graph with low k
 igr <- buildSNNGraph(sce,
-		     BSPARAM=IrlbaParam(),
-		     assay.type="logcounts", 
-		     subset.row=hvgs,
+		     use.dimred="PCA",
 		     k=10,
 		     BNPARAM=AnnoyParam()) 
 
 # Clustering on graph
-cl <- igraph::cluster_walktrap(igr, steps=3)
-cluster <- cl$membership
+cl <- igraph::cluster_louvain(igr)
+sce$Cluster <- paste0("C",cl$membership)
+
+
+# Sub Clustering
+set.seed(42)
+cluster.list <- quickSubCluster(sce, groups=sce$Cluster,
+				  min.ncells=200,
+    prepFUN=function(x) { 
+        dec <- modelGeneVar(x)
+        input <- denoisePCA(x, technical=dec,
+            subset.row=getTopHVGs(dec),
+            BSPARAM=BiocSingular::IrlbaParam())
+    },
+    clusterFUN=function(x) { 
+        g <- buildSNNGraph(x, use.dimred="PCA", k=20,
+			   BNPARAM=AnnoyParam())
+        igraph::cluster_louvain(g)$membership
+    }
+)
+
+# Extract barcode to cluster assignment
+getSubClusters <- function(sce.obj){
+    bcs <- colData(sce.obj)$Barcode
+    clst <- colData(sce.obj)$subcluster
+    out <- data.frame("Barcode"=bcs,
+		      "Cluster"=clst)
+    return(out)
+}
+
+clust.out <- lapply(cluster.list,getSubClusters)
+out.cluster <- do.call(rbind,clust.out)
+
+
 
 # UMAP for visualisation in the next script
-ump <- umap(as.matrix(t(logcounts(sce)[hvgs,])), random_state=42)
-umap1 <- ump$layout[,1]
-umap2 <- ump$layout[,2]
+pcs <- reducedDim(sce)
+ump <- umap(pcs, random_state=42)
 
-out <- data.frame("Barcode"=colnames(sce),
-		  "Sample"=opt$Sample,
-		  "Cluster"=cluster,
-		  "UMAP1"=umap1,
-		  "UMAP2"=umap2,
-		  "DbltScore"=doublet.scores,
-		  "UmiSums"=colSums(counts(sce)))
+# Put all data in one DF
+out.umap <- data.frame("UMAP1"=ump$layout[,1],
+		       "UMAP2"=ump$layout[,2],
+		       "Barcode"=sce$Barcode,
+		       "UmiSums"=colSums(counts(sce)))
 
-rownames(donor.id) <- paste0(opt$Sample,"_",donor.id$cell)
+out.score <- data.frame("Barcode"=colData(sce.nodoub)$Barcode,
+		  "DbltScore"=doublet.scores)
+
+out <- dplyr::left_join(out.cluster,out.umap)
+out <- dplyr::left_join(out,out.score)
+out$Sample <- opt$Sample
+
+# Add Donor information
+rownames(donor.id) <- donor.id$cell
 out$Donor <- donor.id[out$Barcode,"donor_id"]
+out$Donor[is.na(out$Donor)] <- "doublet" # The doublets we removed earlier
+
+out$Barcode <- rownames(out) <- paste0(out$Sample,"_",out$Barcode)
 
 # Save Data
 write.csv(out,file=opt$out)

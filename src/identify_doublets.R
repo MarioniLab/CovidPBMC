@@ -32,10 +32,11 @@ names(ddata.list) <- list.names
 ddata.df <- data.frame(do.call(rbind,ddata.list))
 
 # Log-Transform scores
+ddata.df$DbltScore[is.na(ddata.df$DbltSCore)] <- max(ddata.df$DbltScore)
 ddata.df$DbltScore <- log10(ddata.df$DbltScore+1)
 
 # Compute median scores per cluster and sample
-cluster.scores <- aggregate(ddata.df$DbltScore, list(ddata.df$Sample, ddata.df$Cluster), median)
+cluster.scores <- aggregate(ddata.df$DbltScore, list(ddata.df$Sample, ddata.df$Cluster), function(x) median(x,na.rm=TRUE))
 colnames(cluster.scores) = c("Sample", "Cluster", "Medscore")
 
 # Number of cells per cluster
@@ -57,21 +58,22 @@ cluster.scores$fracVireoDoublets = sapply(1:nrow(cluster.scores), function(RW){
 
 # Define doublets based on fraction and median doublet score
 # Will have to see whether it is sensible to identify outlier per sample rather than across all samples
-cluster.scores$ScoreOutlier <- scater::isOutlier(cluster.scores$Medscore,nmad=1.5,type="higher",log=FALSE)
-cluster.scores$ScoreIsDoublet <- cluster.scores$ScoreOutlier & cluster.scores$fracCells <= 0.05
-
-# Plot with median cluster scores
-p0 <- ggplot(cluster.scores, aes(x=Sample, y=Medscore, colour=factor(Cluster))) +
-  geom_point(data=cluster.scores[cluster.scores$ScoreIsDoublet,],size=2) +
-  geom_jitter(data=cluster.scores[!cluster.scores$ScoreIsDoublet,], col="darkgrey", size=.5, width=.1) +
-  guides(color="none") +
-  labs(x="Sample", y="Median doublet score") +
-  theme(axis.text.x=element_text(angle = 45, hjust = 1))
+cluster.scores$ScoreOutlier <- scater::isOutlier(cluster.scores$Medscore,nmad=1,type="higher",log=FALSE)
+cluster.scores$ScoreIsDoublet <- cluster.scores$ScoreOutlier & cluster.scores$fracCells <= 0.07
 
 # Define doublets based on fraction of cells within a cluster that are genotype doublets
 # This should be done per sample as this might vary depending on the amount of multiplexing
-cluster.scores$VireoOutlier <- scater::isOutlier(cluster.scores$fracVireoDoublets,nmad=1.5,type="higher",log=FALSE, batch=cluster.scores$Sample)
-cluster.scores$VireoIsDoublet <- cluster.scores$VireoOutlier & cluster.scores$fracCells <= 0.05
+cluster.scores$VireoOutlier <- scater::isOutlier(cluster.scores$fracVireoDoublets,nmad=1,type="higher",log=FALSE, batch=cluster.scores$Sample)
+cluster.scores$VireoIsDoublet <- cluster.scores$VireoOutlier & cluster.scores$fracCells <= 0.07
+
+
+# Plot with median cluster scores
+p0 <- ggplot(cluster.scores, aes(x=Sample, y=Medscore, colour=factor(Cluster), shape=VireoIsDoublet)) +
+  geom_point(data=cluster.scores[cluster.scores$ScoreIsDoublet,],size=3) +
+  geom_jitter(data=cluster.scores[!cluster.scores$ScoreIsDoublet,], col="darkgrey", size=2, width=.1) +
+  guides(color="none") +
+  labs(x="Sample", y="Median doublet score") +
+  theme(axis.text.x=element_text(angle = 45, hjust = 1))
 
 # Plot with fraction of vireo doublets per cluster
 p1 <- ggplot(cluster.scores, aes(x=Sample, y=fracVireoDoublets, colour=factor(Cluster), shape=ScoreIsDoublet)) +
