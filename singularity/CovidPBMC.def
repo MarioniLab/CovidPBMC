@@ -34,11 +34,40 @@ This Singularity container contains all the software necessary to reproduce the 
    apt-get -y install gcc-7 gfortran-7 #g++-7
 
    #reqs for some of the packages
-   apt-get -y install  libpcre3-dev
+   apt-get -y install  libpcre3-dev liblzma-dev libbz2-dev
 
    #for h5
    apt-get -y install libhdf5-dev libhdf5-cpp-103 libhdf5-103
 
+   #For berkleyDB
+   apt-get -y install libleveldb-dev
+
+   #For python-rocksdb
+   apt-get -y install libsnappy-dev zlib1g-dev libbz2-dev libgflags-dev liblz4-dev libzstd-dev
+
+   #---- Python -----
+
+   # This is a fix to install conda, see https://github.com/sylabs/singularity/issues/315
+   # multiprocess.Semaphore() requires write access to the shared memory directory
+   # Whether the folder exists seems to be dependent on the host env..
+   rm -rf /dev/shm
+   mkdir -p /dev/shm
+   chmod 777 /dev/shm 
+
+   # conda 
+   curl -sSL https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -o /tmp/miniconda.sh \
+   && bash /tmp/miniconda.sh -bfp /miniconda \
+   && conda install -y python=3\ \
+   && conda update conda
+   PATH="/miniconda/bin:$PATH"
+
+   # Install conda packages
+   conda install numpy scipy cython numba matplotlib scikit-learn h5py seaborn statsmodels 
+   conda install -c conda-forge bsddb3 
+   pip install -U cellSNP
+   pip install -U vireoSNP
+   #uwsgi crashes if installed through pip 
+   conda install -c conda-forge uwsgi
 
    #---- R Installation -----
 
@@ -65,38 +94,75 @@ This Singularity container contains all the software necessary to reproduce the 
    #install CellRanger
    tar -xzf cellranger-3.1.0.tar.gz
 
-
-   #---- Python -----
-
-   # This is a fix to install conda, see https://github.com/sylabs/singularity/issues/315
-   # multiprocess.Semaphore() requires write access to the shared memory directory
-   mkdir -p /dev/shm
-   chmod 777 /dev/shm 
-
-   # conda 
-   curl -sSL https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -o /tmp/miniconda.sh \
-   && bash /tmp/miniconda.sh -bfp /miniconda \
-   && conda install -y python=3\ \
-   && conda update conda
-   PATH="/miniconda/bin:$PATH"
-
-   # Install conda packages
-   conda install numpy scipy cython numba matplotlib scikit-learn h5py seaborn statsmodels
-   pip install -U cellSNP
-   pip install -U vireoSNP
-
    #---- Other ----
 
    mkdir /utils
    cd /utils
+
+   # Vartrix
    wget https://github.com/10XGenomics/vartrix/releases/download/v1.1.16/vartrix_linux -O vartrix
    chmod 777 vartrix
+   # Freebayes
    wget https://github.com/ekg/freebayes/releases/download/v1.3.1/freebayes-v1.3.1 -O freebayes
    chmod 777 freebayes
+
+   # BWA
+   git clone https://github.com/lh3/bwa.git
+   cd bwa 
+   make
+   cd ../
+
+   #McCortex
+   git clone --recursive https://github.com/mcveanlab/mccortex
+   cd mccortex
+   make all MAXK=63
+   cd ../
+
+   #BerkleyDB
+   export BERKELEYDB_DIR=/usr/local/
+   export BERKELEY_VERSION=4.8.30
+   # Download, configure and install BerkeleyDB
+   wget -P /tmp http://download.oracle.com/berkeley-db/db-"${BERKELEY_VERSION}".tar.gz 
+   tar -xf /tmp/db-"${BERKELEY_VERSION}".tar.gz -C /tmp
+   rm -f /tmp/db-"${BERKELEY_VERSION}".tar.gz
+   cd /tmp/db-"${BERKELEY_VERSION}"/build_unix 
+   ../dist/configure --prefix $BERKELEYDB_DIR && make && make install
+
+   #Rocksdb (req for BIGSI)
+   cd /utils
+   git clone https://github.com/facebook/rocksdb.git
+   cd rocksdb
+   DEBUG_LEVEL=0 make shared_lib install-shared
+   export LD_LIBRARY_PATH=/usr/local/lib
+
+   #BIGSI
+   cd /utils
+   git clone https://github.com/Phelimb/BIGSI.git
+   cd BIGSI
+   pip install -r requirements.txt
+   pip install -r optional-requirements.txt
+   pip install .
+
+   #Samtools
+   cd /utils
+   wget https://sourceforge.net/projects/samtools/files/samtools/1.10/samtools-1.10.tar.bz2/download -O samtools-1.10.tar.bz2
+   tar -xf samtools-1.10.tar.bz2
+   cd samtools-1.10
+   ./configure && make && make install
 
 %environment
    #Setup Path
    PATH="/cellranger-3.1.0/:$PATH"
    PATH="/miniconda/bin:$PATH"
    PATH="$PATH:/utils/"
+   PATH="$PATH:/utils/bwa"
+   PATH="$PATH:/utils/mccortex/bin"
+   PATH="$PATH:/utils/BIGSI"
    export PATH
+   # Other ENV
+   BERKELEYDB_DIR=/usr/local/
+   BERKELEY_VERSION=4.8.30
+   export BERKELEY_DIR
+   export BERKELEY_VERSION
+   LD_LIBRARY_PATH=/usr/local/lib
+   export LD_LIBRARY_PATH

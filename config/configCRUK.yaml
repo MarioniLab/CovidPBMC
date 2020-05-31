@@ -53,6 +53,12 @@ Doublets:
 ADT:
     qc_rscript: "/mnt/scratchb/jmlab/morgan02/Covid/CovidPBMC/src/ADT_report.R"
 
+Conversion:
+    bam2fastq: "/hps/nobackup/research/marioni/covid19/CovidPBMC/src/bam2fastq.py"
+
+Reference:
+    virus: "NCBI_virus,NCBI_SARS_COV2"
+
 FinalCheck:
   permission_script: "/mnt/scratchb/jmlab/morgan02/Covid/CovidPBMC/src/check_permissions.sh"
 

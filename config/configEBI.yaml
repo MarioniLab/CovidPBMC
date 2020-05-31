@@ -54,3 +54,9 @@ ADT:
 
 FinalCheck:
     permission_script: "/hps/nobackup/research/marioni/covid19/CovidPBMC/src/check_permissions.sh"
+
+Conversion:
+    bam2fastq: "/hps/nobackup/research/marioni/covid19/CovidPBMC/src/bam2fastq.py"
+
+Reference:
+    virus: "NCBI_virus,NCBI_SARS_COV2"

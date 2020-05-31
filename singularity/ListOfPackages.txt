@@ -16,6 +16,7 @@ FNN
 ggplot2
 ggrepel
 ggrastr
+ggthemes
 glmnet
 igraph
 irlba
@@ -24,6 +25,7 @@ Matrix
 MASS
 limSolve
 mgcv
+nnet
 optparse
 pheatmap
 plyr
@@ -38,5 +40,7 @@ scater
 schex
 scran
 scales
+qusage
 umap
 viridis
+VennDiagram
