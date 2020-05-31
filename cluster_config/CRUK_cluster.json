@@ -53,5 +53,10 @@
     {
         "nCPUs"      : 12,
         "memory"     : 160000
+    },
+    "run_doublet_scores":
+    {
+        "nCPUs"      : 1,
+        "memory"     : 48000
     }
 }
