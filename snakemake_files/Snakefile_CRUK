@@ -347,11 +347,13 @@ rule run_adt_qc:
         in_sce=BASE_DIR + "SCE/Covid_SCE.RDS",
         cellranger_dir=directory(expand(BASE_DIR + "cellranger_output/{sample}_CITE", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])))
     params:
-        adt_qc_rscript=config['ADT']['qc_rscript']
+        adt_qc_rscript=config['ADT']['qc_rscript'],
+        input_list=lambda wildcards, input: ",".join(input.cellranger_dir),
+        input_sce=lambda wildcards, input: ",".join(input.in_sce)
     output:
         plots=BASE_DIR + "reports/ADT-QC.pdf"
     shell:
-        """ singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.adt_qc_rscript} --CITEdirectory {input.cellranger_dir} --ADTSCE {input.in_sce} --plots {output.plots}"""
+        """ singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.adt_qc_rscript} --CITEdirectory {params.input_list} --ADTSCE {params.input_sce} --plots {output.plots}"""
 
 
 ###############################################################################
