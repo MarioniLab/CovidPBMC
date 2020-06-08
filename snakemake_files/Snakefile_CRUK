@@ -352,7 +352,7 @@ rule run_adt_qc:
     output:
         plots=BASE_DIR + "reports/ADT-QC.pdf"
     shell:
-        """ singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.adt_qc_rscript} --CITEdirectory {params.input_list} --ADTSCE {input.inc_sce} --plots {output.plots}"""
+        """ singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.adt_qc_rscript} --CITEdirectory {params.input_list} --ADTSCE {input.in_sce} --plots {output.plots}"""
 
 
 ###############################################################################
