@@ -9,6 +9,7 @@ library(DropletUtils)
 library(Matrix)
 library(reldist)
 library(optparse)
+library(ggthemes)
 
 # rather than pull in all of edgeR we only need this one function
 # it operates over a matrix and returns a vector
@@ -26,29 +27,34 @@ parser <- add_option(parser, c("-t", "--TCRdirectory"), type="character",
 parser <- add_option(parser, c("-b", "--BCRdirectory"), type="character",
                      help="Paths to CellRanger BCR output directories, comma-separated list")
 
+opt <- parse_args(parser)
+
 message("Extracting BCR CellRanger metrics")
 sample.list <- unlist(strsplit(opt$BCRdirectory, split=",", fixed=TRUE))
 # sample names are in the directory name
 samp.names <- lapply(sample.list, FUN=function(P) unlist(lapply(strsplit(P, fixed=TRUE, split="/"),
-                                                          FUN=function(sP) paste0(sP[length(sP)-2]))))
+                                                          FUN=function(sP) paste0(sP[length(sP)]))))
 samp.names <- as.factor(unlist(samp.names))
-names(sample.list) <- samp.names
+print(samp.names)
+names(sample.list) <- levels(samp.names)
+print(names(sample.list))
 
 bcr.metric.list <- list()
 bcr.annot.list <- list()
-for(x in levels(samp.names)){
+for(x in seq_along(levels(samp.names))){
       x.samp <- levels(samp.names)[x]
       x.dir <- sample.list[[x.samp]]
-      x.metric.file <- paste0(x.dir, "outs/metrics_summary.csv")
+      x.metric.file <- paste0(x.dir, "/outs/metrics_summary.csv")
       bcr.metrics <- read.table(x.metric.file,
                                sep=",", header=TRUE, stringsAsFactors=FALSE)
       bcr.metrics <- as.data.frame(t(apply(bcr.metrics, 2, FUN=function(X) as.numeric(gsub(X, pattern="[\\,\\%]", replacement="")))))
       bcr.metrics$SampID <- x.samp
 
-      x.annot.file <- paste0(x.dir, "outs/filtered_contig_annotations.csv")
+      x.annot.file <- paste0(x.dir, "/outs/filtered_contig_annotations.csv")
       bcr.annots <- read.table(x.annot.file,
                                sep=",", header=TRUE, stringsAsFactors=FALSE)
       bcr.annots$SampID <- x.samp
+      print(head(bcr.annots))
       bcr.annot.list[[x.samp]] <- bcr.annots
 
       percent.colnames <- c("Valid.Barcodes", "Q30.Bases.in.Barcode", "Q30.Bases.in.RNA.Read.1", "Q30.Bases.in.Sample.Index",
@@ -71,13 +77,13 @@ for(x in levels(samp.names)){
      bcr.metric.list[[x.samp]] <- list("reads"=x.bcr.reads.melt, "percent"=x.bcr.percent.melt, "cells"=x.bcr.cells.melt, "diversity"=x.bcr.diversity.melt)
 }
 
-bcr.reads.melt <- do.call(rbind.data.frame, list=lapply(bcr.metric.list, FUN=function(MB) MB[["reads"]]))
-bcr.cells.melt <- do.call(rbind.data.frame, list=lapply(bcr.metric.list, FUN=function(MB) MB[["cells"]]))
-bcr.percent.melt <- do.call(rbind.data.frame, list=lapply(bcr.metric.list, FUN=function(MB) MB[["percent"]]))
-bcr.diversity.melt <- do.call(rbind.data.frame, list=lapply(bcr.metric.list, FUN=function(MB) MB[["diversity"]]))
+bcr.reads.melt <- do.call(rbind.data.frame, lapply(bcr.metric.list, FUN=function(MB) MB[["reads"]]))
+bcr.cells.melt <- do.call(rbind.data.frame, lapply(bcr.metric.list, FUN=function(MB) MB[["cells"]]))
+bcr.percent.melt <- do.call(rbind.data.frame, lapply(bcr.metric.list, FUN=function(MB) MB[["percent"]]))
+bcr.diversity.melt <- do.call(rbind.data.frame, lapply(bcr.metric.list, FUN=function(MB) MB[["diversity"]]))
 
 reads.plot <- ggplot(bcr.reads.melt, aes(x=variable, y=value, fill=SampID)) +
-  geom_bar(stat='identity') +
+  geom_bar(stat='identity', position='dodge') +
   theme_cowplot() +
   scale_fill_colorblind() +
   theme(axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) +
@@ -85,7 +91,7 @@ reads.plot <- ggplot(bcr.reads.melt, aes(x=variable, y=value, fill=SampID)) +
   labs(x="Metric", y="Value")
 
 cells.plot <- ggplot(bcr.cells.melt, aes(x=variable, y=value, fill=SampID)) +
-  geom_bar(stat='identity') +
+  geom_bar(stat='identity', position='dodge') +
   theme_cowplot() +
   scale_fill_colorblind() +
   theme(axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) +
@@ -93,14 +99,14 @@ cells.plot <- ggplot(bcr.cells.melt, aes(x=variable, y=value, fill=SampID)) +
   labs(x="Metric", y="Value")
 
 percent.plot <- ggplot(bcr.percent.melt, aes(x=variable, y=value, fill=SampID)) +
-  geom_bar(stat='identity') +
+  geom_bar(stat='identity', position='dodge') +
   theme_cowplot() +
   scale_fill_colorblind() +
   theme(axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) +
   labs(x="Metric", y="Value")
 
 diversity.plot <- ggplot(bcr.diversity.melt, aes(x=variable, y=value, fill=SampID)) +
-  geom_bar(stat='identity') +
+  geom_bar(stat='identity', position='dodge') +
   theme_cowplot() +
   scale_fill_colorblind() +
   theme(axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) +
@@ -114,10 +120,11 @@ message("Iterating over BCR annotations")
 # make a cell x clonotype matrix
 # this should be split by light and heavy chain
 bcr.clono.list <- list()
-for(x in levels(samp.names)){
+for(x in seq_along(levels(samp.names))){
       samp.x <- levels(samp.names)[x]
 
       bcr.annots <- bcr.annot.list[[samp.x]]
+      print(head(bcr.annots))
       bcrL.clono.mat <- acast(formula=cdr3 ~ barcode,
                        value.var='umis', 
                        fill=0, # need to fill in the missing values with 0's
@@ -189,7 +196,7 @@ bcr.gini.df <- do.call(rbind.data.frame, bcr.clono.list)
 bcr.gini.plot <- ggplot(bcr.gini.df, aes(x=Props, y=Gini, fill=SampID)) +
   geom_point(shape=21, size=3) +
   theme_cowplot() +
-  #scale_fill_colorblind() +
+  scale_fill_colorblind() +
   expand_limits(y=c(0, 1)) +
   facet_wrap(~Chain, nrow=1) + 
   labs(x="Proporiton of data", y="Gini index")
@@ -197,7 +204,7 @@ bcr.gini.plot <- ggplot(bcr.gini.df, aes(x=Props, y=Gini, fill=SampID)) +
 bcr.clono.plot <- ggplot(bcr.gini.df, aes(x=Props, y=NClones, fill=SampID)) +
   geom_point(shape=21, size=3) +
   theme_cowplot() +
-  #scale_fill_colorblind() +
+  scale_fill_colorblind() +
   expand_limits(y=c(0, 1)) +
   facet_wrap(~Chain, nrow=1) +
   labs(x="Proporiton of data", y="#Clonotypes")
@@ -213,33 +220,34 @@ plot.out <- plot_grid(plt.title, plots, ncol=1, rel_heights=c(0.1, 0.95))
 ggsave(plot=plot.out, file=gsub(opt$plots, pattern="\\.pdf", replacement="_BCR.pdf"), height=16.95, width=16.95)
 
 sink(file="/dev/null")
-rm(list=ls())
+rm(list=c("bcr.clono.list", "x.bcr.gini.df", "bcr.annot.list"))
 gc()
 sink(file=NULL)
 
 
 ### ---------- TCR Seq results ------------- ###
 message("Extracting TCR CellRanger metrics")
+print(opt$TCRdirectory)
 sample.list <- unlist(strsplit(opt$TCRdirectory, split=",", fixed=TRUE))
 # sample names are in the directory name
 samp.names <- lapply(sample.list, FUN=function(P) unlist(lapply(strsplit(P, fixed=TRUE, split="/"),
-                                                          FUN=function(sP) paste0(sP[length(sP)-2]))
+                                                          FUN=function(sP) paste0(sP[length(sP)]))))
 samp.names <- as.factor(unlist(samp.names))
 names(sample.list) <- samp.names
 tcr.metric.list <- list() 
 tcr.annot.list <- list()
 
-for(x in levels(samp.names)){
+for(x in seq_along(levels(samp.names))){
       x.samp <- levels(samp.names)[x]
       x.dir <- sample.list[[x.samp]]
-      x.metric.file <- paste0(x.dir, "outs/metrics_summary.csv")
+      x.metric.file <- paste0(x.dir, "/outs/metrics_summary.csv")
 
       tcr.metrics <- read.table(x.metric.file,
                           sep=",", header=TRUE, stringsAsFactors=FALSE)
       tcr.metrics <- as.data.frame(t(apply(tcr.metrics, 2, FUN=function(X) as.numeric(gsub(X, pattern="[\\,\\%]", replacement="")))))
       tcr.metrics$SampID <- x.samp
 
-      x.annots.file <- paste0(x.dir, "outs/filtered_contig_annotations.csv")
+      x.annots.file <- paste0(x.dir, "/outs/filtered_contig_annotations.csv")
       tcr.annots <- read.table(x.annots.file,
                          sep=",", header=TRUE, stringsAsFactors=FALSE)
       tcr.annots$SampID <- x.samp
@@ -264,13 +272,13 @@ for(x in levels(samp.names)){
       tcr.metric.list[[x.samp]] <- list("reads"=x.tcr.reads.melt, "percent"=x.tcr.percent.melt, "cells"=x.tcr.cells.melt, "diversity"=x.tcr.diversity.melt)
 }
 
-tcr.reads.melt <- do.call(rbind.data.frame, list=lapply(tcr.metric.list, FUN=function(MB) MB[["reads"]]))
-tcr.cells.melt <- do.call(rbind.data.frame, list=lapply(tcr.metric.list, FUN=function(MB) MB[["cells"]]))
-tcr.percent.melt <- do.call(rbind.data.frame, list=lapply(tcr.metric.list, FUN=function(MB) MB[["percent"]]))
-tcr.diversity.melt <- do.call(rbind.data.frame, list=lapply(tcr.metric.list, FUN=function(MB) MB[["diversity"]]))
+tcr.reads.melt <- do.call(rbind.data.frame, lapply(tcr.metric.list, FUN=function(MB) MB[["reads"]]))
+tcr.cells.melt <- do.call(rbind.data.frame, lapply(tcr.metric.list, FUN=function(MB) MB[["cells"]]))
+tcr.percent.melt <- do.call(rbind.data.frame, lapply(tcr.metric.list, FUN=function(MB) MB[["percent"]]))
+tcr.diversity.melt <- do.call(rbind.data.frame, lapply(tcr.metric.list, FUN=function(MB) MB[["diversity"]]))
 
 reads.plot <- ggplot(tcr.reads.melt, aes(x=variable, y=value, fill=SampID)) +
-  geom_bar(stat='identity') +
+  geom_bar(stat='identity', position='dodge') +
   theme_cowplot() +
   scale_fill_colorblind() +
   theme(axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) +
@@ -278,7 +286,7 @@ reads.plot <- ggplot(tcr.reads.melt, aes(x=variable, y=value, fill=SampID)) +
   labs(x="Metric", y="Value")
 
 cells.plot <- ggplot(tcr.cells.melt, aes(x=variable, y=value, fill=SampID)) +
-  geom_bar(stat='identity') +
+  geom_bar(stat='identity', position='dodge') +
   theme_cowplot() +
   scale_fill_colorblind() +
   theme(axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) +
@@ -286,14 +294,14 @@ cells.plot <- ggplot(tcr.cells.melt, aes(x=variable, y=value, fill=SampID)) +
   labs(x="Metric", y="Value")
 
 percent.plot <- ggplot(tcr.percent.melt, aes(x=variable, y=value, fill=SampID)) +
-  geom_bar(stat='identity') +
+  geom_bar(stat='identity', position='dodge') +
   theme_cowplot() +
   scale_fill_colorblind() +
   theme(axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) +
   labs(x="Metric", y="Value")
 
 diversity.plot <- ggplot(tcr.diversity.melt, aes(x=variable, y=value, fill=SampID)) +
-  geom_bar(stat='identity') +
+  geom_bar(stat='identity', position='dodge') +
   theme_cowplot() +
   scale_fill_colorblind() +
   theme(axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)) +
@@ -306,7 +314,7 @@ diversity.plot <- ggplot(tcr.diversity.melt, aes(x=variable, y=value, fill=SampI
 # why is htis so memory intensive????? would acast be better?
 message("Iterating over TCR clonotype results")
 tcr.clono.list <- list()
-for(x in levels(samp.names)){
+for(x in seq_along(levels(samp.names))){
       samp.x <- levels(samp.names)[x]
       tcr.annots <- tcr.annot.list[[samp.x]]
 
@@ -317,12 +325,13 @@ for(x in levels(samp.names)){
                        data=tcr.annots[tcr.annots$chain %in% c("TRA"), ])
        tcra.clono.mat <- as(tcra.clono.mat, "dgCMatrix")
 
-       tcrb.clono.mat <- acast(formula=cdr3 ~ barcode, 
+       tcrb.clono.mat <- acast(formula=cdr3 ~ barcode,
                         value.var='umis', 
                         fill=0, # need to fill in the missing values with 0's
                         fun.aggregate = median, na.rm=TRUE,
                         data=tcr.annots[tcr.annots$chain %in% c("TRB"), ])
-       tcrb.clono.mat <- as(tcrb.clono.mat), "dgCMatrix")
+
+       tcrb.clono.mat <- as(tcrb.clono.mat, "dgCMatrix")
 
        multi.clono.mat <- acast(formula=cdr3 ~ barcode, 
                         value.var='umis', 
@@ -375,9 +384,12 @@ for(x in levels(samp.names)){
        tcr.clono.list[[samp.x]] <- x.tcr.gini.df
 }
 
+tcr.gini.df <- do.call(rbind.data.frame, tcr.clono.list)
+
 tcr.gini.plot <- ggplot(tcr.gini.df, aes(x=Props, y=Gini, fill=SampID)) +
   geom_point(shape=21, size=3) +
   theme_cowplot() +
+  scale_fill_colorblind() +
   facet_wrap(~Chain, nrow=1) +
   expand_limits(y=c(0, 1)) +
   labs(x="Proporiton of data", y="Gini index")
@@ -385,6 +397,7 @@ tcr.gini.plot <- ggplot(tcr.gini.df, aes(x=Props, y=Gini, fill=SampID)) +
 tcr.clono.plot <- ggplot(tcr.gini.df, aes(x=Props, y=NClones, fill=SampID)) +
   geom_point(shape=21, size=3) +
   theme_cowplot() +
+  scale_fill_colorblind() +
   facet_wrap(~Chain, nrow=1) +
   expand_limits(y=c(0, 1)) +
   labs(x="Proporiton of data", y="#Clonotypes")
