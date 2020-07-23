@@ -32,6 +32,7 @@ opt <- parse_args(parser)
 library(DropletUtils)
 library(scater)
 library(ggplot2)
+library(ggrastr)
 library(cowplot)
 library(ggrepel)
 theme_set(theme_cowplot())
@@ -77,7 +78,7 @@ gene.dist <- ggplot(qc, aes(x=detected)) +
     ggtitle("Features Expressed")
 
 det.trend <- ggplot(qc, aes(x=sum, y=detected, color=is.lib.fail)) +
-    geom_point()  +
+    geom_point_rast(size=.3)  +
     scale_color_manual(values=c("black","grey80")) +
     xlab("Library Size") +
     ylab("# features") +
@@ -95,7 +96,7 @@ print(sum(sum.ab))
 
 # can't plot on a log axis if all values are 0!
 gex.v.ab <- ggplot(fplot, aes(x=sum.expr, y=sum.ab, color=is.lib.fail)) +
-    geom_point() +
+    geom_point_rast(size=.3) +
     scale_x_log10() +
     scale_y_log10() +
     scale_color_manual(values=c("black","grey80")) +
@@ -120,7 +121,7 @@ qc$is.mt.fail <- isOutlier(qc$mtrel, type="higher", nmads=opt$mtthreshold)
 relmtthreshold <- round(attr(qc$is.mt.fail,"thresholds")[2],3)
 
 mt.dist <- ggplot(qc, aes(x=mtrel,y=sum, color=is.mt.fail)) +
-    geom_point() +
+    geom_point_rast(size=.3) +
     xlab("Fraction of MT counts") +
     ylab("Library Size") +
     scale_color_manual(values=c("black","grey80")) +
@@ -132,8 +133,8 @@ keep <- !(qc$is.mt.fail | qc$is.lib.fail)
 # ---- Difference between QC_Pass and QC_Fail ----
 
 # MA-Plot between QC_Fail and QC_Pass
-pass <- calculateAverage(rbind(counts(sce.ab),counts(sce))[,keep])
-fail <- calculateAverage(rbind(counts(sce.ab),counts(sce))[,!keep])
+pass <- calculateAverage(rbind(counts(sce))[,keep])
+fail <- calculateAverage(rbind(counts(sce))[,!keep])
 library(edgeR)
 logged <- cpm(cbind(pass, fail), log=TRUE, prior.count=2)
 logFC <- logged[,1] - logged[,2]
@@ -144,8 +145,8 @@ fplot <- data.frame("abundance"=abundance,
 		    "Name"=names(logFC))
 fplot <- dplyr::arrange(fplot,desc(abs(logFC)))
 ma.plt <- ggplot(fplot, aes(x=abundance, y=logFC)) +
-    geom_point() +
-    geom_text_repel(data=fplot[abs(fplot$logFC)>1,], aes(label=Name)) +
+    geom_point_rast() +
+    geom_text_repel(data=fplot[abs(fplot$logFC)>1,][1:20,], aes(label=Name)) +
     ggtitle("QC_Fail - QC_Pass") +
     ylab("logFC") +
     xlab("Average logExpr")

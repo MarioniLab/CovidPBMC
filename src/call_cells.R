@@ -22,6 +22,7 @@ opt <- parse_args(parser)
 # ---- Load Data ----
 library(DropletUtils)
 library(ggplot2)
+library(ggrastr)
 library(cowplot)
 library(BiocParallel)
 theme_set(theme_cowplot())
@@ -86,7 +87,7 @@ uniq <- !duplicated(bcrank$rank)
 fplot <- data.frame("rank"=bcrank$rank[uniq],
 		    "total"=bcrank$total[uniq]) 
 bcplt <- ggplot(fplot, aes(x=rank, y=total)) +
-	    geom_point() +
+	    geom_point_rast() +
 	    scale_x_log10() +
 	    scale_y_log10() +
 	    geom_hline(yintercept=metadata(bcrank)$inflection,
