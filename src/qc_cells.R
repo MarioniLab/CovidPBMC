@@ -47,6 +47,11 @@ message("Subseting data to valid called cells")
 # Subset to called cells
 sce <- sce[,cells]
 
+# Subset to GEX
+is.gex <- rowData(sce)$Type == "Gene Expression"
+sce.ab <- sce[!is.gex,]
+sce <- sce[is.gex,]
+
 # ---- QC plots ----
 # compute QC stats
 message("Calculating QC metrics")
@@ -76,13 +81,12 @@ det.trend <- ggplot(qc, aes(x=sum, y=detected, color=is.lib.fail)) +
     scale_color_manual(values=c("black","grey80")) +
     xlab("Library Size") +
     ylab("# features") +
-    ggtitle("Detection Tredn")
+    ggtitle("Detection Trend")
 
 message("Plotting GEX vs. Ab counts")
 # Droplets with only GEX or Ab counts?
-is.gex <- rowData(sce)$Type == "Gene Expression"
-sum.expr <- colSums(counts(sce)[is.gex,])
-sum.ab <- colSums(counts(sce)[!is.gex,])
+sum.expr <- colSums(counts(sce))
+sum.ab <- colSums(counts(sce.ab))
 fplot <- data.frame("GEXLib"=sum.expr,
 		    "ABLib"=sum.ab,
 		    "is.lib.fail"=qc$is.lib.fail)
@@ -128,8 +132,8 @@ keep <- !(qc$is.mt.fail | qc$is.lib.fail)
 # ---- Difference between QC_Pass and QC_Fail ----
 
 # MA-Plot between QC_Fail and QC_Pass
-pass <- calculateAverage(counts(sce)[,!keep])
-fail <- calculateAverage(counts(sce)[,keep])
+pass <- calculateAverage(rbind(counts(sce.ab),counts(sce))[,keep])
+fail <- calculateAverage(rbind(counts(sce.ab),counts(sce))[,!keep])
 library(edgeR)
 logged <- cpm(cbind(pass, fail), log=TRUE, prior.count=2)
 logFC <- logged[,1] - logged[,2]
