@@ -133,8 +133,8 @@ keep <- !(qc$is.mt.fail | qc$is.lib.fail)
 # ---- Difference between QC_Pass and QC_Fail ----
 
 # MA-Plot between QC_Fail and QC_Pass
-pass <- calculateAverage(rbind(counts(sce))[,keep])
-fail <- calculateAverage(rbind(counts(sce))[,!keep])
+pass <- calculateAverage(sce[,keep])
+fail <- calculateAverage(sce[,!keep])
 library(edgeR)
 logged <- cpm(cbind(pass, fail), log=TRUE, prior.count=2)
 logFC <- logged[,1] - logged[,2]
@@ -144,9 +144,12 @@ fplot <- data.frame("abundance"=abundance,
 		    "logFC"=logFC,
 		    "Name"=names(logFC))
 fplot <- dplyr::arrange(fplot,desc(abs(logFC)))
+top <- fplot[fplot$logFC > 0,][1:10,]
+btm <- fplot[fplot$logFC < 0,][1:10,]
 ma.plt <- ggplot(fplot, aes(x=abundance, y=logFC)) +
     geom_point_rast() +
-    geom_text_repel(data=fplot[abs(fplot$logFC)>1,][1:20,], aes(label=Name)) +
+    geom_text_repel(data=top, aes(label=Name)) +
+    geom_text_repel(data=btm, aes(label=Name)) +
     ggtitle("QC_Fail - QC_Pass") +
     ylab("logFC") +
     xlab("Average logExpr")
