@@ -32,6 +32,10 @@ theme_set(theme_cowplot())
 fldr <- dirname(opt$input)
 sce <- read10xCounts(fldr,col.names=TRUE)
 
+# Subset to GEX only
+is.gex <- rowData(sce)$Type=="Gene Expression"
+sce <- sce[is.gex,]
+
 # Ensure to always set the seed before any call of empty drops
 emptyDrops_seed <- function(...,rnd.seed=42) {
     set.seed(rnd.seed)
