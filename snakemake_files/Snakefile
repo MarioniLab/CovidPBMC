@@ -19,7 +19,7 @@ import re
 #############################################################################
 configfile: "CovidPBMC/config/configEBI.yaml"
 
-BASE_DIR = "/hps/nobackup/research/marioni/covid19/"
+BASE_DIR = "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/"
 
 workdir: BASE_DIR
 
@@ -62,17 +62,19 @@ rule all:
             expand(BASE_DIR + "genotypes/cellSNP/{sample}.vcf.gz", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "genotypes/vartrix/{sample}_alt_matrix.mtx", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "genotypes/vartrix/{sample}_ref_matrix.mtx", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
-            expand(BASE_DIR + "demultiplexed/cellSNP_vireo/{sample}", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
-            expand(BASE_DIR + "demultiplexed/vartrix_vireo/{sample}", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
+            expand(BASE_DIR + "demultiplexed/cellSNP_vireo/{sample}/donor_ids.tsv", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
+            expand(BASE_DIR + "demultiplexed/vartrix_vireo/{sample}/donor_ids.tsv", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "doublet/scores/{sample}_doublet_data.csv", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
-            BASE_DIR + "reports/ADT-QC.pdf",
             BASE_DIR + "doublet/doublets/Doublets.csv",
-            expand(BASE_DIR + "unmapped_bams/{sample}_unmapped.bam", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
-            expand(BASE_DIR + "unmapped_bams/{sample}.fastq.gz", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
-            expand(BASE_DIR + "fasta/{reference}.bwt", reference=VIRAL_REFERENCE),
-            expand(BASE_DIR + "fasta/{reference}.fasta.fai", reference=VIRAL_REFERENCE),
-            expand(BASE_DIR + "bam.dir/{sample}.{reference}.sam", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES], reference=VIRAL_REFERENCE)
-
+            BASE_DIR + "reports/ADT-QC.pdf",
+            expand(BASE_DIR + "MOFA/Covid_ADT_{sample}_cpm.txt.gz", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
+#	    BASE_DIR + "MOFA/Covid_ADT_longCPM.txt.gz",
+            BASE_DIR + "MOFA/Covid_ADT_MOFA.hdf5"
+#            expand(BASE_DIR + "unmapped_bams/{sample}_unmapped.bam", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
+#            expand(BASE_DIR + "unmapped_bams/{sample}.fastq.gz", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
+#            expand(BASE_DIR + "fasta/{reference}.bwt", reference=VIRAL_REFERENCE),
+#            expand(BASE_DIR + "fasta/{reference}.fasta.fai", reference=VIRAL_REFERENCE),
+#            expand(BASE_DIR + "bam.dir/{sample}.{reference}.sam", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES], reference=VIRAL_REFERENCE)
 
 #############################################################################
 # Run GEX & ADT Cell Ranger
@@ -354,6 +356,70 @@ rule run_adt_qc:
     shell:
         """ singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.adt_qc_rscript} --CITEdirectory {params.input_list} --ADTSCE {params.input_sce} --plots {output.plots}"""
 
+
+###############################################################################
+# Peform ADT-specific diagnostic for seq coverage, etc
+##############################################################################
+rule run_adt_qc:
+    """
+    Run QC diagnostics on ADT libraries to check for sufficient coverage and balance
+    """
+    input:
+        in_sce=BASE_DIR + "SCE/Covid_SCE.RDS",
+        cellranger_dir=directory(expand(BASE_DIR + "cellranger_output/{sample}_CITE", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])))
+    params:
+        adt_qc_rscript=config['ADT']['qc_rscript'],
+        input_list=lambda wildcards, input: ",".join(input.cellranger_dir)
+    output:
+        plots=BASE_DIR + "reports/ADT-QC.pdf"
+    shell:
+        """ singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.adt_qc_rscript} --CITEdirectory {params.input_list} --ADTSCE {input.in_sce} --plots {output.plots}"""
+
+###############################################################################
+# Extract ADT log CPM+1 normalised data in long format for MOFA
+###############################################################################
+rule extract_adt:
+    """
+    Extract ADT count matrices, apply normalisation (log CPM+1) and melt into long format for input into MOFA. This also add group-wise information to run multi-group MOFA
+    """
+
+    input:
+        in_sce=BASE_DIR + "SCE/Covid_SCE_ABS.RDS",
+        donor_files=BASE_DIR + "demultiplexed/cellSNP_vireo/{sample}/donor_ids.tsv"
+    params:
+        sce_list=lambda wildcards, input: ",".join(input.in_sce),
+        donor_list=lambda wildcards, input: ",".join(input.donor_files),
+        extract_rscript=config['MOFA']['extract_rscript'],
+        out_prefix=BASE_DIR + "MOFA/Covid_ADT"
+    output:
+        #long_out=BASE_DIR + "MOFA/Covid_ADT_longCPM.txt.gz", # how can I make this an output that will be recognised by snakemake as well?
+        wide_out=BASE_DIR + "MOFA/Covid_ADT_{sample}_cpm.txt.gz"
+    shell:
+        """ singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.extract_rscript} --SCElist {params.sce_list} --DonorList {params.donor_list} --output {params.out_prefix} """
+
+###############################################################################
+# Run multi-group MOFA on just the ADT libraries
+###############################################################################
+rule adt_mofa_multigroup:
+    """
+    Run MOFA using each sequencing sample as a separate group - only use the ADT libraries
+    """
+
+    input:
+        in_cpm=expand(BASE_DIR + "MOFA/Covid_ADT_{sample}_cpm.txt.gz", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])),
+        donor_files=expand(BASE_DIR + "demultiplexed/cellSNP_vireo/{sample}/donor_ids.tsv", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]))
+    params:
+        n_factors=config['MOFA']['factors'],
+        runmode=config['MOFA']['runmode'],
+        mofa_train_python=config['MOFA']['train_script'],
+        cpm_list=lambda wildcards, input: ",".join(input.in_cpm),
+        donor_list=lambda wildcards, input: ",".join(input.donor_files),
+        log=BASE_DIR + "logs/MOFA_multi-group_ADT.log",
+        out_prefix=BASE_DIR + "MOFA/Covid_ADT"
+    output:
+        mofa_out=BASE_DIR + "MOFA/Covid_ADT_MOFA.hdf5"
+    shell:
+        """ singularity exec {config[singularity][preamble]} {config[singularity][img]} python {params.mofa_train_python} --counts-list {params.cpm_list} --donor-list {params.donor_list} --factors {params.n_factors} --runmode {params.runmode} --MOFAoutput {output.mofa_out} --output-prefix {params.out_prefix} --log {params.log} """
 
 ###############################################################################
 # Extract unmapped reads for each input single-cell sample
