@@ -21,6 +21,7 @@ theme_set(theme_cowplot())
 
 dd.files <- unlist(strsplit(opt$doubletdata,","))
 ddata.list <- lapply(dd.files, function(DF) read.csv(DF,stringsAsFactors=FALSE,row.names=1))
+message(paste0("Reading in ", length(dd.files), " doublet data files"))
 
 # Sample names for list for plotting
 list.names <- unlist(lapply(strsplit(dd.files,"/"),function(x) x[length(x)]))
@@ -31,6 +32,7 @@ names(ddata.list) <- list.names
 
 ddata.df <- data.frame(do.call(rbind,ddata.list))
 
+message("Computing per-cluster and per-sample scores")
 # Log-Transform scores
 ddata.df$DbltScore[is.na(ddata.df$DbltSCore)] <- max(ddata.df$DbltScore)
 ddata.df$DbltScore <- log10(ddata.df$DbltScore+1)
@@ -56,14 +58,14 @@ cluster.scores$fracVireoDoublets = sapply(1:nrow(cluster.scores), function(RW){
 
 # ---- DoubletID ----
 
+message("Determining doublets")
 # Define doublets based on fraction and median doublet score
 # Will have to see whether it is sensible to identify outlier per sample rather than across all samples
-cluster.scores$ScoreOutlier <- scater::isOutlier(cluster.scores$Medscore,nmad=1,type="higher",log=FALSE)
+cluster.scores$ScoreOutlier <- scater::isOutlier(cluster.scores$Medscore,nmad=1.5,type="higher",log=FALSE)
 cluster.scores$ScoreIsDoublet <- cluster.scores$ScoreOutlier & cluster.scores$fracCells <= 0.07
 
 # Define doublets based on fraction of cells within a cluster that are genotype doublets
-# This should be done per sample as this might vary depending on the amount of multiplexing
-cluster.scores$VireoOutlier <- scater::isOutlier(cluster.scores$fracVireoDoublets,nmad=1,type="higher",log=FALSE, batch=cluster.scores$Sample)
+cluster.scores$VireoOutlier <- cluster.scores$fracVireoDoublets > 0.5
 cluster.scores$VireoIsDoublet <- cluster.scores$VireoOutlier & cluster.scores$fracCells <= 0.07
 
 
@@ -85,6 +87,7 @@ p1 <- ggplot(cluster.scores, aes(x=Sample, y=fracVireoDoublets, colour=factor(Cl
 	legend.position="bottom")
 
 
+message("Plotting")
 # Combine plot
 p_scores <- plot_grid(p0,p1,ncol=1)
 
@@ -118,6 +121,7 @@ p_umaps <- plot_grid(plotlist=doublet_plots)
 
 #### All of the below is just to label how each doublet was identified to make some checks later, might rm all of the below eventually
 
+message("Preparing output")
 # Cells identified by vireo
 vir.dblts <- ddata.df[ddata.df$Donor=="doublet","Barcode"]
 
@@ -152,6 +156,7 @@ out$DoubletType <- plyr::mapvalues(all.dblts,out$Barcode,
 				     rep("Multiple",length(mult.dblts))))
 
 # ---- Save ----
+message("Saving Output")
 write.csv(out,opt$out)
 name.scores <- paste0(opt$pl,"/DoubletScores.pdf")
 name.umaps <- paste0(opt$pl,"/DoubletUMAPs.pdf")

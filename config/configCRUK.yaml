@@ -39,12 +39,14 @@ QC:
     sparsity: 0.99 # the percentage of 0's to tolerate per single-cell (sparsity)
     qc_rscript: "/mnt/scratchb/jmlab/morgan02/Covid/CovidPBMC/src/qc_cells.R"
     qc_demux: "//mnt/scratchb/jmlab/morgan02/Covid/CovidPBMC/src/qc_demux.R"
+    elbo_demux: "/mnt/scratchb/jmlab/morgan02/Covid/CovidPBMC/src/elbow_plot.py"
 
 Norm:
     gene_sparse: 0.95 # the percentages of 0's to tolerate per gene prior to size factor estimation
     norm_rscript: "/mnt/scratchb/jmlab/morgan02/Covid/CovidPBMC/src/norm_data.R"
     qc_flag: "--outputqc"
     positive_factors: " --force " # force size factors to be positive
+    adt_threshold: 300 # the minimum number of ADT UMIs required to keep the cell
 
 Doublets:
     doub_score_rscript: "/mnt/scratchb/jmlab/morgan02/Covid/CovidPBMC/src/comp_doublet_scores.R"
@@ -52,6 +54,12 @@ Doublets:
 
 ADT:
     qc_rscript: "/mnt/scratchb/jmlab/morgan02/Covid/CovidPBMC/src/ADT_report.R"
+
+MOFA:
+    extract_rscript: "/mnt/scratchb/jmlab/morgan02/Covid/CovidPBMC/src/extract_counts.R"
+    factors: 50
+    runmode: medium
+    train_script: "/mnt/scratchb/jmlab/morgan02/Covid/CovidPBMC/src/train_mofa.py"
 
 Conversion:
     bam2fastq: "/hps/nobackup/research/marioni/covid19/CovidPBMC/src/bam2fastq.py"

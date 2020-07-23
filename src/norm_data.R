@@ -19,6 +19,9 @@ parser <- add_option(parser, c("-w", "--whitelists"), type="character",
 parser <- add_option(parser, c("-s", "--sparsity"), type="double", default=0.95,
                      help="threshold to remove genes with many zero counts prior to normalisation [default %default]", metavar="number")
 
+parser <- add_option(parser, c("-u", "--ADTthreshold"), type="numeric", default=100,
+       	  	     help="Threshold for the total number of ADT UMIs on which to remove sparse ADT libraries")
+
 parser <- add_option(parser, c("-l", "--logs"), type="character",
                      help="Path to csv for summary (optional)")
 
@@ -46,7 +49,13 @@ library(scater)
 library(ggplot2)
 library(cowplot)
 library(DropletUtils)
+library(BiocParallel)
 theme_set(theme_cowplot())
+
+## Register BiocParallel params
+ncores <- 4
+mcparam <- MulticoreParam(workers=ncores)
+register(mcparam)
 
 # read in cell barcodes, features and counts matrix
 # read in barcode whitelist to remove for estimating size factors
@@ -153,6 +162,7 @@ message(paste0("Cluster size set to ", cluster.size))
 if(ncol(sce) > 300){
   clusters <- quickCluster(sce, min.size=cluster.size,
   	      		   subset.row=keep_genes,
+			   BPPARAM=mcparam,
                            method="igraph")
   max.size <- floor(cluster.size/2)
 } else if(ncol(sce) < 100) {
@@ -162,6 +172,7 @@ if(ncol(sce) > 300){
   max.size <- floor(cluster.size/2) + 1
 } else{
   clusters <- quickCluster(sce, min.size=cluster.size,
+                           BPPARAM=mcparam,
   	      		   subset.row=keep_genes)
   max.size <- floor(cluster.size/2)
 }
@@ -174,6 +185,7 @@ sce <- computeSumFactors(sce,
                          max.cluster.size=max.size,
                          positive=opt$force,
 			 subset.row=keep_genes,
+                         BPPARAM=mcparam,
                          assay.type='counts', clusters=clusters)
   
 # the scater function is normalise, not normalize
@@ -199,6 +211,7 @@ s.factors <- data.frame("CellID"=colnames(sce), "SumFactor"=sizeFactors(sce))
 write.table(s.factors, file=opt$sizefactors, quote=FALSE, sep="\t", row.names=FALSE)
 
 message("Output antibody SCE for each sample")
+ab.out.list <- list()
 for(x in seq_along(levels(samp.names))){
     samp.x <- levels(samp.names)[x]
     ab.sce.x <- ab.sce.list[[samp.x]]
@@ -206,10 +219,27 @@ for(x in seq_along(levels(samp.names))){
     out.ab.sce <- gsub(opt$output, pattern="\\.RDS", replacement=paste0("-", samp.x, "_Ab.RDS"))
     # add size factors and normalise
     x.cells <- colnames(ab.sce.x)
+
+    message(paste0("Removing cells with #UMI < ", opt$ADTthreshold))
+    adt.libsize <- colSums(counts(ab.sce.x))
+    keep.cells <- adt.libsize >= opt$ADTthreshold
+    message(paste0("Keeping ", sum(keep.cells), " ADT libraries from sample: ", samp.x))
     sizeFactors(ab.sce.x) <- sizeFactors(sce[, x.cells])
+    ab.sce.x <- ab.sce.x[, keep.cells]
+
     ab.sce.x <- scater::normalize(ab.sce.x)
     saveRDS(ab.sce.x, file=out.ab.sce)
+    ab.out.list[[samp.x]] <- ab.sce.x
 }
+
+big.abs.sce <- do.call(cbind, ab.out.list)
+abs.ofile <- gsub(opt$output, pattern="\\.RDS", replacement="_Ab.RDS")
+saveRDS(big.abs.sce, file=abs.ofile)
+
+sink(file="/dev/null")
+rm(list=c("big.abs.sce"))
+gc()
+sink(file=NULL)
 
 good.cell.libs <- log10(colSums(counts(sce)))
 good.cell.df <- data.frame("CellID"=colnames(sce), "LibSize"=good.cell.libs, "SumFactor"=sizeFactors(sce),
@@ -245,6 +275,7 @@ if(opt$outputqc){
   	clusters <- quickCluster(sce.fail, min.size=cluster.size,
   	                             subset.row=keep_genes,
 				     use.ranks=TRUE,
+                                     BPPARAM=mcparam,
 				     method="igraph"),
         error = function(c){
 	   message("Negative size factors in quick cluster, removing smallest 5% of QC-failed cells")
@@ -258,6 +289,7 @@ if(opt$outputqc){
 	   clusters <- quickCluster(sce.fail, min.size=cluster.size,
                                      subset.row=keep_genes,
                                      use.ranks=FALSE,
+                                     BPPARAM=mcparam,
                                      method="igraph")
            return(clusters)
 	   }, finally = {
@@ -273,6 +305,7 @@ if(opt$outputqc){
 	      clusters <- quickCluster(sce.fail, min.size=cluster.size,
                                      subset.row=keep_genes,
                                      use.ranks=TRUE,
+                                     BPPARAM=mcparam,
                                      method="igraph")
 	      }
 	   }
@@ -288,6 +321,7 @@ if(opt$outputqc){
                          max.cluster.size=max.size,
                          positive=TRUE,
 			 subset.row=keep_genes,
+                         BPPARAM=mcparam,
                          assay.type='counts', clusters=clusters)
   
 	# the scater function is normalise, not normalize

@@ -29,7 +29,7 @@ opt <- parse_args(parser)
 message("Extracting CITE-seq CellRanger metrics")
 sample.list <- unlist(strsplit(opt$CITEdirectory, split=",", fixed=TRUE))
 # sample names are in the directory name
-samp.names <- lapply(sample.list, FUN=function(P) unlist(lapply(trsplit(P, fixed=TRUE, split="/"),
+samp.names <- lapply(sample.list, FUN=function(P) unlist(lapply(strsplit(P, fixed=TRUE, split="/"),
                                                           FUN=function(sP) paste0(sP[length(sP)]))))
 samp.names <- as.factor(unlist(samp.names))
 names(sample.list) <- levels(samp.names)
