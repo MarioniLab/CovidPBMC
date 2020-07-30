@@ -16,28 +16,28 @@
         "nCPUs"     : 24,
         "threads"   : 15000,
         "memory"    : 60000,
-        "resources" : "\"select[mem>6000] rusage[mem=4000]\""
+        "resources" : "\"select[mem>6000] rusage[mem=40000]\""
     },
     "run_TCR_cellranger":
     {
         "nCPUs"      : 24,
         "threads"    : 15000,
         "memory"     : 60000,
-        "resources"  : "\"select[mem>6000] rusage[mem=4000]\""
+        "resources"  : "\"select[mem>6000] rusage[mem=14000]\""
     },
     "run_BCR_cellranger":
     {
         "nCPUs"      : 24,
         "threads"    : 15000,
         "memory"     : 60000,
-        "resources"  : "\"select[mem>6000] rusage[mem=4000]\""
+        "resources"  : "\"select[mem>6000] rusage[mem=14000]\""
     },
     "run_emptyDrops":
     {
         "nCPUs"      : 12,
         "threads"    : 12000,
         "memory"     : 48000,
-        "resources"  : "\"select[mem>4800] rusage[mem=4000]\""
+        "resources"  : "\"select[mem>4800] rusage[mem=48000]\""
     },
     "run_scGenotyping_vartrix":
     {

@@ -1,16 +1,16 @@
 # Reference files
 base:
     dir: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/"
-    run: "TEST"
+    run: "DATA"
 
 singularity:
-    img: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov//singularity/CovidPBMC.sif"
-    preamble: " "
+    img: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/singularity/CovidPBMC.sif"
+    preamble: " -B /hps/covid19_nobackup2/research/marioni/sds-marioni-cov "
 
 hg38_SarsCov2:
     # the cellranger format file with human and Sars-CoV2 genome sequences and annotations
-    referenceFolder: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov//genome_refs/hg38_SarsCov2"
-    fasta: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov//genome_refs/hg38_SarsCov2/fasta/genome.fa"
+    referenceFolder: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/genome_refs/hg38_SarsCov2"
+    fasta: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/genome_refs/hg38_SarsCov2/fasta/genome.fa"
 
 hg38_vdj:
     # standard 10X Genomics pre-built Ig and TCR loci
