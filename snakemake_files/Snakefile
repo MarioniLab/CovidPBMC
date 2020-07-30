@@ -25,7 +25,7 @@ workdir: BASE_DIR
 
 ## Make sure the the test samples are commented out for running genuine samples
 ## Regex for the differnt filename components
-SAMPLES = [fx for fx in glob_wildcards(BASE_DIR + "test_data/fastq/{sample}.fastq.gz")][0]
+SAMPLES = [fx for fx in glob_wildcards(BASE_DIR + "data/fastq/{sample}.fastq.gz")][0]
 CITE_REGEX = re.compile("(\w+)_(5gex|antibody)_(S[0-9]?)_(L[0-9]+)_([R|I][1|2])_00[0-9]")
 TCR_REGEX = re.compile("(\w+)_t_(S[0-9]?)_(L[0-9]+)_([R|I][1|2])_00[0-9]")
 BCR_REGEX = re.compile("(\w+)_b_(S[0-9]?)_(L[0-9]+)_([R|I][1|2])_00[0-9]")
@@ -59,6 +59,7 @@ rule all:
             expand(BASE_DIR + "reports/{sample}_QC.pdf", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "reports/{sample}_demux_QC.pdf", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             BASE_DIR + "SCE/Covid_SCE.RDS",
+            expand(BASE_DIR + "SCE/Covid_SCE-{sample}_Abs.RDS", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])),
             expand(BASE_DIR + "genotypes/cellSNP/{sample}.vcf.gz", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "genotypes/vartrix/{sample}_alt_matrix.mtx", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "genotypes/vartrix/{sample}_ref_matrix.mtx", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
@@ -66,7 +67,8 @@ rule all:
             expand(BASE_DIR + "demultiplexed/vartrix_vireo/{sample}/donor_ids.tsv", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "doublet/scores/{sample}_doublet_data.csv", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             BASE_DIR + "doublet/doublets/Doublets.csv",
-            BASE_DIR + "reports/ADT-QC.pdf",
+#            BASE_DIR + "reports/ADT-QC.pdf",
+#            BASE_DIR + "SCE/Covid_SCE_ABS.RDS",
             expand(BASE_DIR + "MOFA/Covid_ADT_{sample}_cpm.txt.gz", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
 #	    BASE_DIR + "MOFA/Covid_ADT_longCPM.txt.gz",
             BASE_DIR + "MOFA/Covid_ADT_MOFA.hdf5"
@@ -85,8 +87,8 @@ rule run_CITE_cellranger:
     Run CellRanger to process gene expression and Antibody libraries
     """
     input: # input needs to be the feature reference in case this is different
-        libs=BASE_DIR + "test_data/lib_files/{sample}_5gex_protein_library.csv",
-        feature_refs=BASE_DIR + "test_data/ref_files/{sample}_5gex_protein_feature_ref.csv"
+        libs=BASE_DIR + "data/lib_files/{sample}_5gex_protein_library.csv",
+        feature_refs=BASE_DIR + "data/ref_files/{sample}_5gex_protein_feature_ref.csv"
     params:
         sampname="{sample}_CITE",
         transcriptome=config['hg38_SarsCov2']['referenceFolder'],
@@ -109,11 +111,11 @@ rule run_TCR_cellranger:
     Run CellRanger to process TCR libraries
     """
     input:
-        files=["test_data/fastq/{filename}.fastq.gz".format(filename=TCR_REGEX.search(tx).group(0)) for tx in TCR_SAMPLES]
+        files=["data/fastq/{filename}.fastq.gz".format(filename=TCR_REGEX.search(tx).group(0)) for tx in TCR_SAMPLES]
     params:
-        sampname=list(set(["{filename}_t".format(filename=TCR_REGEX.search(rx).group(1)) for rx in TCR_SAMPLES])),
+        sampname="{sample}_t",
         reference=config['hg38_vdj']['referenceFolder'],
-        fastq_dir="{wdir}/test_data/fastq".format(wdir=BASE_DIR),
+        fastq_dir="{wdir}/data/fastq".format(wdir=BASE_DIR),
         cellranger_out="cellranger_output/",
         samp_id="{sample}_TCR"
     output:
@@ -129,9 +131,9 @@ rule run_BCR_cellranger:
     Run CellRanger to process BCR libraries
     """
     input:
-        files=["test_data/fastq/{filename}.fastq.gz".format(filename=BCR_REGEX.search(bx).group(0)) for bx in BCR_SAMPLES] 
+        files=["data/fastq/{filename}.fastq.gz".format(filename=BCR_REGEX.search(bx).group(0)) for bx in BCR_SAMPLES] 
     params:
-        sampname=list(set(["{filename}_b".format(filename=BCR_REGEX.search(rx).group(1)) for rx in BCR_SAMPLES])),
+        sampname="{sample}_b",
         reference=config['hg38_vdj']['referenceFolder'],
         fastq_dir="{wdir}/data/fastq".format(wdir=BASE_DIR),
         samp_id="{sample}_BCR"
@@ -294,6 +296,7 @@ rule normalise_gex:
         join_whitelist=lambda wildcards, input: ",".join(input.barcode_whitelist)
     output:
         sce=BASE_DIR + "SCE/Covid_SCE.RDS",
+        abs_sce=expand(BASE_DIR + "SCE/Covid_SCE-{sample}_Abs.RDS", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])),
         sizefactors=BASE_DIR + "SCE/Covid_SumFactors.tsv",
         plots=BASE_DIR + "reports/Covid_norm.pdf"
     shell:
@@ -339,41 +342,21 @@ rule run_doublet_id:
 
 ###############################################################################
 # Peform ADT-specific diagnostic for seq coverage, etc
-############################################################################## 
-rule run_adt_qc:
-    """
-    Run QC diagnostics on ADT libraries to check for sufficient coverage and balance
-    """
-    input:
-        in_sce=BASE_DIR + "SCE/Covid_SCE.RDS",
-        cellranger_dir=directory(expand(BASE_DIR + "cellranger_output/{sample}_CITE", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])))
-    params:
-        adt_qc_rscript=config['ADT']['qc_rscript'],
-        input_list=lambda wildcards, input: ",".join(input.cellranger_dir),
-        input_sce=lambda wildcards, input: ",".join(input.in_sce)
-    output:
-        plots=BASE_DIR + "reports/ADT-QC.pdf"
-    shell:
-        """ singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.adt_qc_rscript} --CITEdirectory {params.input_list} --ADTSCE {params.input_sce} --plots {output.plots}"""
-
-
-###############################################################################
-# Peform ADT-specific diagnostic for seq coverage, etc
 ##############################################################################
-rule run_adt_qc:
-    """
-    Run QC diagnostics on ADT libraries to check for sufficient coverage and balance
-    """
-    input:
-        in_sce=BASE_DIR + "SCE/Covid_SCE.RDS",
-        cellranger_dir=directory(expand(BASE_DIR + "cellranger_output/{sample}_CITE", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])))
-    params:
-        adt_qc_rscript=config['ADT']['qc_rscript'],
-        input_list=lambda wildcards, input: ",".join(input.cellranger_dir)
-    output:
-        plots=BASE_DIR + "reports/ADT-QC.pdf"
-    shell:
-        """ singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.adt_qc_rscript} --CITEdirectory {params.input_list} --ADTSCE {input.in_sce} --plots {output.plots}"""
+#rule run_adt_qc:
+#    """
+#    Run QC diagnostics on ADT libraries to check for sufficient coverage and balance
+#    """
+#    input:
+#        in_sce=BASE_DIR + "SCE/Covid_SCE.RDS",
+#        cellranger_dir=directory(expand(BASE_DIR + "cellranger_output/{sample}_CITE", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])))
+#    params:
+#        adt_qc_rscript=config['ADT']['qc_rscript'],
+#        input_list=lambda wildcards, input: ",".join(input.cellranger_dir)
+#    output:
+#        plots=BASE_DIR + "reports/ADT-QC.pdf"
+#    shell:
+#        """ singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.adt_qc_rscript} --CITEdirectory {params.input_list} --ADTSCE {input.in_sce} --plots {output.plots}"""
 
 ###############################################################################
 # Extract ADT log CPM+1 normalised data in long format for MOFA
@@ -384,8 +367,8 @@ rule extract_adt:
     """
 
     input:
-        in_sce=BASE_DIR + "SCE/Covid_SCE_ABS.RDS",
-        donor_files=BASE_DIR + "demultiplexed/cellSNP_vireo/{sample}/donor_ids.tsv"
+        in_sce=expand(BASE_DIR + "SCE/Covid_SCE-{sample}_Abs.RDS", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])),
+        donor_files=expand(BASE_DIR + "demultiplexed/cellSNP_vireo/{sample}/donor_ids.tsv", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]))
     params:
         sce_list=lambda wildcards, input: ",".join(input.in_sce),
         donor_list=lambda wildcards, input: ",".join(input.donor_files),
@@ -522,7 +505,7 @@ rule check_permissions:
     """
     This needs to check that all files are at least 777 permission, and if not set them - probs use a bash script for this
     """
-    input: ["cellranger_output", "SCE", "fastq", "reports", "QC", "quant.dir", "demultiplexed", "genotypes"]
+    input: ["cellranger_output", "SCE", "fastq", "reports", "QC", "quant.dir", "demultiplexed", "genotypes", "doublet", "TCR", "BCR"]
     output: "checked_files.txt" # a file that exists if, and only if, all permissions are 777
     params:
         permission_script=config['FinalCheck']['permission_script']
