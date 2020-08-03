@@ -35,6 +35,7 @@ library(ggplot2)
 library(ggrastr)
 library(cowplot)
 library(ggrepel)
+library(biomaRt)
 theme_set(theme_cowplot())
 
 message("Reading single-cell data")
@@ -107,13 +108,23 @@ gex.v.ab <- ggplot(fplot, aes(x=sum.expr, y=sum.ab, color=is.lib.fail)) +
 
 # Mitochondiral counts
 # Get genes on MT
-library(EnsDb.Hsapiens.v86)
-location <- mapIds(EnsDb.Hsapiens.v86, keys=rownames(sce), 
-		   column="SEQNAME", keytype="GENEID")
-is.mito <- location=="MT"
-mitogenes <- names(location)[is.mito]
-mitogenes <- mitogenes[!is.na(mitogenes)]
+# retrieve from biomaRt
+## EnsDb.Hsapiens.v86 is missing from the singularity image
+biomaRt.connection <- useMart("ensembl", "hsapiens_gene_ensembl")
+gene.df <- getBM(attributes = c("ensembl_gene_id", "chromosome_name"), filters="ensembl_gene_id", 
+                 values=rownames(sce), mart=biomaRt.connection)
+rownames(gene.df) <- gene.df$ensembl_gene_id
+gene.df <- gene.df[rownames(sce), ]
 
+#library(EnsDb.Hsapiens.v86)
+#location <- mapIds(EnsDb.Hsapiens.v86, keys=rownames(sce),
+#		   column="SEQNAME", keytype="GENEID")
+#is.mito <- location=="MT"
+#mitogenes <- names(location)[is.mito]
+#mitogenes <- mitogenes[!is.na(mitogenes)]
+is.mito <- gene.df$chromosome_name == "MT"
+mitogenes <- gene.df$ensembl_gene_id[is.mito]
+mitogenes <- mitogenes[!is.na(mitogenes)]
 
 qc$mtsum <- colSums(counts(sce)[mitogenes,])
 qc$mtrel <- qc$mtsum / qc$sum
