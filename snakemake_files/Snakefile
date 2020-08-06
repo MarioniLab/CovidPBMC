@@ -26,15 +26,15 @@ workdir: BASE_DIR
 ## Make sure the the test samples are commented out for running genuine samples
 ## Regex for the differnt filename components
 SAMPLES = [fx for fx in glob_wildcards(BASE_DIR + "data/fastq/{sample}.fastq.gz")][0]
-CITE_REGEX = re.compile("(\w+)_(5gex|antibody)_(S[0-9]?)_(L[0-9]+)_([R|I][1|2])_00[0-9]")
-TCR_REGEX = re.compile("(\w+)_t_(S[0-9]?)_(L[0-9]+)_([R|I][1|2])_00[0-9]")
-BCR_REGEX = re.compile("(\w+)_b_(S[0-9]?)_(L[0-9]+)_([R|I][1|2])_00[0-9]")
+CITE_REGEX = re.compile("(\w+)_(5gex|antibody)_(S[0-9]+)_(L[0-9]+)_([R|I][1|2])_00[0-9]")
+TCR_REGEX = re.compile("(\w+)_t_(S[0-9]+)_(L[0-9]+)_([R|I][1|2])_(001)")
+BCR_REGEX = re.compile("(\w+)_b_(S[0-9]+)_(L[0-9]+)_([R|I][1|2])_(001)")
 CITE_SAMPLES = [gx for gx in SAMPLES if CITE_REGEX.search(gx)]
 TCR_SAMPLES = [tx for tx in SAMPLES if TCR_REGEX.search(tx)]
 BCR_SAMPLES = [bx for bx in SAMPLES if BCR_REGEX.search(bx)]
+SAMPNAMES = list(set([CITE_REGEX.search(sx).group(1) for sx in CITE_SAMPLES]))
 
 VIRAL_REFERENCE=config['Reference']['virus'].split(",")
-
 
 #Load Singularity 3.5 module for each shell command
 # already loaded on the CI server
@@ -120,6 +120,7 @@ rule run_TCR_cellranger:
         samp_id="{sample}_TCR"
     output:
         outs=directory(BASE_DIR + "cellranger_output/" + "{sample}_TCR")
+        #bam=BASE_DIR + "cellranger_output/{sample}_TCR/outs/all_contig.bam.bai"
     shell:
         "cd %s/cellranger_output/; singularity exec {config[singularity][preamble]} {config[singularity][img]} cellranger vdj --id={params.samp_id} --fastqs={params.fastq_dir} --reference={params.reference} --sample={params.sampname} --localcores=24 --localmem=60; cd %s" % (BASE_DIR, BASE_DIR)
 
@@ -131,7 +132,7 @@ rule run_BCR_cellranger:
     Run CellRanger to process BCR libraries
     """
     input:
-        files=["data/fastq/{filename}.fastq.gz".format(filename=BCR_REGEX.search(bx).group(0)) for bx in BCR_SAMPLES] 
+        files=["data/fastq/{filename}.fastq.gz".format(filename=BCR_REGEX.search(bx).group(0)) for bx in BCR_SAMPLES]
     params:
         sampname="{sample}_b",
         reference=config['hg38_vdj']['referenceFolder'],
@@ -139,6 +140,7 @@ rule run_BCR_cellranger:
         samp_id="{sample}_BCR"
     output:
         outs=directory(BASE_DIR + "cellranger_output/" + "{sample}_BCR")
+        #bam=BASE_DIR + "cellranger_output/{sample}_BCR/outs/all_contig.bam.bai"
     shell:
         "cd %s/cellranger_output/; singularity exec {config[singularity][preamble]} {config[singularity][img]} cellranger vdj --id={params.samp_id} --fastqs={params.fastq_dir}  --reference={params.reference} --sample={params.sampname} --localcores=24 --localmem=60; cd %s" % (BASE_DIR, BASE_DIR)
 
