@@ -7,9 +7,9 @@ This Singularity container contains all the software necessary to reproduce the 
 
 %files
 
-    /home/karsten/Cambridge/CovidPBMC/singularity/InstallPackages.R /Install.R
-    /home/karsten/Cambridge/CovidPBMC/singularity/ListOfPackages.txt /ListOfPackages.txt
-    /home/karsten/Cambridge/CovidPBMC/singularity/cellranger-3.1.0.tar.gz /cellranger-3.1.0.tar.gz
+    /Users/bach01/CovidPBMC/singularity/InstallPackages.R /Install.R
+    /Users/bach01/CovidPBMC/singularity/ListOfPackages.txt /ListOfPackages.txt
+    /Users/bach01/CovidPBMC/singularity/cellranger-4.0.0.tar.gz /cellranger-4.0.0.tar.gz
 
 %post
 
@@ -43,15 +43,15 @@ This Singularity container contains all the software necessary to reproduce the 
    apt-get -y install libleveldb-dev
 
    #For python-rocksdb
-   apt-get -y install libsnappy-dev zlib1g-dev libbz2-dev libgflags-dev liblz4-dev libzstd-dev
+   apt-get -y install libsnappy-dev zlib1g-dev libbz2-dev libgflags-dev liblz4-dev libzstd-dev binutils
 
    #---- Python -----
 
    # This is a fix to install conda, see https://github.com/sylabs/singularity/issues/315
    # multiprocess.Semaphore() requires write access to the shared memory directory
    # Whether the folder exists seems to be dependent on the host env..
-   rm -rf /dev/shm
-   mkdir -p /dev/shm
+   #rm -rf /dev/shm
+   #mkdir -p /dev/shm
    chmod 777 /dev/shm 
 
    # conda 
@@ -92,7 +92,7 @@ This Singularity container contains all the software necessary to reproduce the 
    Rscript /Install.R
 
    #install CellRanger
-   tar -xzf cellranger-3.1.0.tar.gz
+   tar -xzf cellranger-4.0.0.tar.gz
 
    #---- Other ----
 
@@ -132,6 +132,7 @@ This Singularity container contains all the software necessary to reproduce the 
    cd /utils
    git clone https://github.com/facebook/rocksdb.git
    cd rocksdb
+   export CXXFLAGS="$CXXFLAGS -fPIC"
    DEBUG_LEVEL=0 make shared_lib install-shared
    export LD_LIBRARY_PATH=/usr/local/lib
 
@@ -150,9 +151,12 @@ This Singularity container contains all the software necessary to reproduce the 
    cd samtools-1.10
    ./configure && make && make install
 
+   #MOFA+
+   pip install mofapy2
+
 %environment
    #Setup Path
-   PATH="/cellranger-3.1.0/:$PATH"
+   PATH="/cellranger-4.0.0/:$PATH"
    PATH="/miniconda/bin:$PATH"
    PATH="$PATH:/utils/"
    PATH="$PATH:/utils/bwa"
