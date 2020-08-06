@@ -25,6 +25,7 @@ Matrix
 MASS
 limSolve
 mgcv
+mclust
 nnet
 optparse
 pheatmap
