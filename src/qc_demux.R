@@ -33,16 +33,21 @@ theme_set(theme_cowplot())
 
 # Read in called cell barcodes
 # Cells
+message(paste0("Reading in barcode information: ", opt$barcodes))
 cells <- read.csv(opt$barcodes,stringsAsFactors=FALSE,header=FALSE)[,1]
+
 qcpass <- read.csv(opt$whitelist,stringsAsFactors=FALSE,header=FALSE)[,1]
+message(paste0("Found ", length(qcpass), " QC-passed droplets"))
 # Read in raw counts for all called cells
 fldr <- dirname(opt$matrix)
-sce <- read10xCounts(fldr,col.names=TRUE)
+sce <- read10xCounts(fldr, col.names=TRUE)
 sce <- sce[,cells]
 
+message(paste0("Extracting single-cell data for ", ncol(sce), " droplets"))
 #Barcode-DonorID data
-demux <- read.table(opt$donorIDs,stringsAsFactors=FALSE,header=TRUE)
+demux <- read.table(opt$donorIDs, stringsAsFactors=FALSE, header=TRUE)
 
+message(paste0("Reading in demultiplexing info from: ", opt$donorIDs))
 #Assignment Probabilites
 demux.fldr <- dirname(opt$donorIDs)
 singlet <- paste0(demux.fldr,"/prob_singlet.tsv.gz")
@@ -52,6 +57,7 @@ doublet <- gzfile(doublet,'rt')
 probs <- read.table(singlet,stringsAsFactors=FALSE,header=TRUE)
 probs.doublet <- read.table(doublet,stringsAsFactors=FALSE,skip=1)
 
+message("Computing summary stats")
 # ---- Summarize Data ----
 # compute QC stats
 qc <- data.frame(perCellQCMetrics(sce))
@@ -86,10 +92,10 @@ unassgnd.rate <- round((sum(qc$QCPass & qc$donor_id=="unassigned") / tot) * 100,
 ######## 
 
 # ---- QC plots ----
-
+message("Generating QC plots")
 # Donor distribution
 fplot <- dplyr::group_by(qc, donor_id, QCPass) 
-fplot <- dplyr::summarize(fplot,n())
+fplot <- dplyr::summarize(fplot,dplyr::n()) # what is 'n()'?
 colnames(fplot)[3] <- "Freq"
 
 don.dist <- ggplot(fplot, aes(x=donor_id, y=Freq, fill=QCPass)) +
