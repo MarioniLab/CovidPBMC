@@ -33,7 +33,7 @@ demux:
     filters: ""
 
 QC:
-    mt_thresh: 2 # this is a scalar for how many times the MAD should be treated as outliers
+    mt_thresh: 0.07 # this represents the maxium fraction of MT counts accepted
     umi_thresh: 1000 # the minimum number of detected UMIs per cell to keep
     sparsity: 0.99 # the percentage of 0's to tolerate per single-cell (sparsity)
     qc_rscript: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/CovidPBMC/src/qc_cells.R"

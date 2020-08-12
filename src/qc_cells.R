@@ -35,6 +35,7 @@ library(ggplot2)
 library(ggrastr)
 library(cowplot)
 library(ggrepel)
+library(mgcv) 
 theme_set(theme_cowplot())
 
 message("Reading single-cell data")
@@ -43,6 +44,9 @@ cells <- read.csv(opt$barcodes,stringsAsFactors=FALSE,header=FALSE)[,1]
 # Read in raw counts
 fldr <- dirname(opt$matrix)
 sce <- read10xCounts(fldr,col.names=TRUE)
+
+# Get Sample name
+smp <- grep("CITE",unlist(strsplit(opt$matrix,"/")),value=TRUE)
 
 message("Subseting data to valid called cells")
 # Subset to called cells
@@ -63,6 +67,10 @@ message(paste0("Removing sparse cells with > ", opt$sparsitythreshold, " zeros")
 gdthreshold <- (1-opt$sparsitythreshold)*nrow(sce)
 qc$is.lib.fail <- qc$sum < opt$umithreshold | qc$detected < gdthreshold
 
+# Identify cellls that are far below the detection trend
+qc$residDetectionTrend <- gam(log10(detected) ~ s(log10(sum),bs="cr"),data=qc)$residuals
+qc$trnd.outlier <- isOutlier(qc$residDetectionTrend,nmads=6,type="lower")
+
 lib.dist <- ggplot(qc, aes(x=sum)) +
     geom_histogram(bins=100) +
     scale_x_log10() +
@@ -77,12 +85,15 @@ gene.dist <- ggplot(qc, aes(x=detected)) +
     xlab("# feautres") +
     ggtitle("Features Expressed")
 
-det.trend <- ggplot(qc, aes(x=sum, y=detected, color=is.lib.fail)) +
+det.trend <- ggplot(qc, aes(x=sum, y=detected, color=trnd.outlier)) +
     geom_point_rast(size=.3)  +
     scale_color_manual(values=c("black","grey80")) +
+    geom_vline(xintercept=opt$umithreshold) +
+    geom_hline(yintercept=gdthreshold) +
     xlab("Library Size") +
     ylab("# features") +
     ggtitle("Detection Trend")
+
 
 message("Plotting GEX vs. Ab counts")
 # Droplets with only GEX or Ab counts?
@@ -117,18 +128,17 @@ mitogenes <- mitogenes[!is.na(mitogenes)]
 
 qc$mtsum <- colSums(counts(sce)[mitogenes,])
 qc$mtrel <- qc$mtsum / qc$sum
-qc$is.mt.fail <- isOutlier(qc$mtrel, type="higher", nmads=opt$mtthreshold)
-relmtthreshold <- round(attr(qc$is.mt.fail,"thresholds")[2],3)
+qc$is.mt.fail <- qc$mtrel > opt$mtthreshold
 
 mt.dist <- ggplot(qc, aes(x=mtrel,y=sum, color=is.mt.fail)) +
     geom_point_rast(size=.3) +
     xlab("Fraction of MT counts") +
     ylab("Library Size") +
     scale_color_manual(values=c("black","grey80")) +
-    ggtitle(paste0("Thresholded at ",relmtthreshold))
+    ggtitle(paste0("Thresholded at ",opt$mtthreshold))
 
 # ---- Define QC_Pass ----
-keep <- !(qc$is.mt.fail | qc$is.lib.fail)
+keep <- !(qc$is.mt.fail | qc$is.lib.fail | qc$tnrd.outlier)
 
 # ---- Difference between QC_Pass and QC_Fail ----
 
@@ -150,7 +160,7 @@ ma.plt <- ggplot(fplot, aes(x=abundance, y=logFC)) +
     geom_point_rast() +
     geom_text_repel(data=top, aes(label=Name)) +
     geom_text_repel(data=btm, aes(label=Name)) +
-    ggtitle("QC_Fail - QC_Pass") +
+    ggtitle("QC_Pass - QC_Fail") +
     ylab("logFC") +
     xlab("Average logExpr")
 
@@ -161,20 +171,23 @@ ma.plt <- ggplot(fplot, aes(x=abundance, y=logFC)) +
 
 
 # ---- Summary ----
-stat.names <- c("Total_Cells", "Lib_Fail", "Sparsity_Fail","Mt_Fail", "QC_Fail", "QC_Pass")
+stat.names <- c("Total_Cells", "Lib_Fail", "Sparsity_Fail","Mt_Fail", "QC_Fail", "QC_Pass", "DetTrend_Fail")
 stat.values <- c(ncol(sce), 
 		 sum(qc$sum < opt$umithreshold),
 		 sum(qc$detected < gdthreshold),
 		 sum(qc$is.mt.fail),
 		 sum(keep),
-		 sum(!keep))
+		 sum(!keep),
+		 sum(qc$trnd.outlier))
 qc.stats <- data.frame("Statistic"=stat.names,
-		       "Value"=stat.values)
+		       "Value"=stat.values,
+		       "Sample"=smp)
 
 
 # ---- QC-Plot ----
 ttle <- ggdraw() + 
-  draw_label(paste0("Qualtiy Control of ", ncol(sce),
+  draw_label(paste0("Quality Control for ", smp,
+		    " of ", ncol(sce),
 		    " cells, of which ", sum(keep),
 		    " pass"), fontface='bold', x=0, hjust=0, size=20) 
 

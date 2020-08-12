@@ -253,9 +253,10 @@ rule run_singlecell_qc:
         qc_rscript=config['QC']['qc_rscript']
     output:
         barcodes=BASE_DIR + "QC/{sample}_barcode-whitelist.txt",
+        logs=BASE_DIR + "QC/{sample}_QC_log.csv",
         plots=BASE_DIR + "reports/{sample}_QC.pdf"
     shell:
-        "singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.qc_rscript} --matrix {input.matrix} --barcodes {input.called_cells} --sparsitythreshold {params.sparse_thresh} --umithreshold {params.umi_thresh} --mtthreshold {params.mt_thresh} --plots {output.plots} --out {output.barcodes}"
+        "singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.qc_rscript} --matrix {input.matrix} --barcodes {input.called_cells} --sparsitythreshold {params.sparse_thresh} --umithreshold {params.umi_thresh} --mtthreshold {params.mt_thresh} --plots {output.plots} --out {output.barcodes} --logs {output.logs}"
 
 #############################################################################
 # Demutliplexing QC
