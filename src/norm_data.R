@@ -85,6 +85,7 @@ for(x in seq_along(levels(samp.names))){
     samp.x <- levels(samp.names)[x]
     bcs.x <- paste(samp.x, cells.list[[samp.x]], sep="_")
     pass_bcs[[samp.x]] <- bcs.x
+    message(paste0(length(bcs.x), " passed barcodes found for sample: ", samp.x))
 }
 
 # Subset to called cells
@@ -105,11 +106,22 @@ message("Combining individual SCE objects together")
 sce <- do.call(cbind, lapply(samp.names, FUN=function(SQ) sce.list[[SQ]][common.features, ]))
 
 # get the list of antibody features in each data set
-ab.sce.list <- lapply(samp.names, FUN=function(Q) sce.list[[Q]][rowData(sce.list[[Q]])$Type == "Antibody Capture", ])
+ab.sce.list <- list()
+for(x in seq_along(levels(samp.names))){
+  samp.x <- levels(samp.names)[x]
+  x.ab.sce <- sce.list[[samp.x]][rowData(sce.list[[samp.x]])$Type == "Antibody Capture",]
+  ab.sce.list[[samp.x]] <- x.ab.sce
+}
 
+message("Subsetting protein data")
 names(ab.sce.list) <- levels(samp.names)
-ab.sce.list <- lapply(levels(samp.names), FUN=function(SP) ab.sce.list[[SP]][, pass_bcs[[SP]]])
+ab.sce.list <- lapply(levels(samp.names), FUN=function(SP) ab.sce.list[[SP]][, intersect(colnames(ab.sce.list[[SP]]), pass_bcs[[SP]])])
 names(ab.sce.list) <- levels(samp.names)
+
+sink(file="/dev/null")
+rm(list=c("sce.list"))
+gc(reset=TRUE)
+sink(file=NULL)
 
 message("Subsetting called cells")
 sce <- sce[, unlist(pass_bcs)]
@@ -135,8 +147,18 @@ if(opt$outputqc){
     sce <- sce[, unlist(white_bcs)]
     failab.sce.list <- ab.sce.list
     # I think this step might switch the names around - grr!
-    ab.sce.list <- lapply(samp.names, FUN=function(SP) ab.sce.list[[SP]][, white_bcs[[SP]]])
-    names(ab.sce.list) <- samp.names
+    message("Subsetting ADT SCE objects")
+    lapply(ab.sce.list, FUN=function(SO) print(dim(SO)))
+    for(x in seq_along(levels(samp.names))){
+       samp.x <- levels(samp.names)[x]
+       x.ab.sce <- ab.sce.list[[samp.x]]
+       x.ab.sce <- x.ab.sce[, colnames(x.ab.sce) %in% white_bcs[[samp.x]]]
+       ab.sce.list[[samp.x]] <- x.ab.sce
+       print(dim(x.ab.sce))
+    }
+    sink(file="/dev/null")
+    gc(reset=TRUE)
+    sink(file=NULL)
 } else{
     sce <- sce[, unlist(white_bcs)]
     ab.sce.list <- lapply(samp.names, FUN=function(SP) ab.sce.list[[SP]][, white_bcs[[SP]]])
@@ -149,11 +171,15 @@ if(opt$outputqc){
 
 n.cells <- ncol(sce)
 n.genes <- nrow(sce)
-
+message(paste0("Computing gene expression sparsity over ", n.cells, " droplets."))
 gene_sparsity <- apply(counts(sce) == 0, MARGIN = 1, sum)/n.cells
 keep_genes <- gene_sparsity < opt$sparsity
 
 message(paste0("Using ", sum(keep_genes), " genes for size factor estimation"))
+sink(file="/dev/null")
+rm(list=c("gene_sparsity"))
+gc(reset=TRUE)
+sink(file=NULL)
 
 # set cluster size to 5% of data
 cluster.size <- ceiling(ncol(sce) * 0.05)
@@ -162,7 +188,7 @@ message(paste0("Cluster size set to ", cluster.size))
 if(ncol(sce) > 300){
   clusters <- quickCluster(sce, min.size=cluster.size,
   	      		   subset.row=keep_genes,
-			   BPPARAM=mcparam,
+			   #BPPARAM=mcparam,
                            method="igraph")
   max.size <- floor(cluster.size/2)
 } else if(ncol(sce) < 100) {
@@ -172,7 +198,7 @@ if(ncol(sce) > 300){
   max.size <- floor(cluster.size/2) + 1
 } else{
   clusters <- quickCluster(sce, min.size=cluster.size,
-                           BPPARAM=mcparam,
+                           #BPPARAM=mcparam,
   	      		   subset.row=keep_genes)
   max.size <- floor(cluster.size/2)
 }
@@ -185,7 +211,7 @@ sce <- computeSumFactors(sce,
                          max.cluster.size=max.size,
                          positive=opt$force,
 			 subset.row=keep_genes,
-                         BPPARAM=mcparam,
+                         #BPPARAM=mcparam,
                          assay.type='counts', clusters=clusters)
   
 # the scater function is normalise, not normalize
@@ -199,6 +225,11 @@ if(neg.sf > 0){
 
 message("Normalising single-cell expression values")
 sce <- normalize(sce)
+
+sink(file="/dev/null")
+rm(list=c("clusters"))
+gc(reset=TRUE)
+sink(file=NULL)
 
 message(paste0("Writing SCE object to: ", opt$output))
 saveRDS(sce, file=opt$output)
@@ -238,7 +269,7 @@ saveRDS(big.abs.sce, file=abs.ofile)
 
 sink(file="/dev/null")
 rm(list=c("big.abs.sce"))
-gc()
+gc(reset=TRUE)
 sink(file=NULL)
 
 good.cell.libs <- log10(colSums(counts(sce)))
@@ -251,8 +282,8 @@ good.ab.cell.df <- merge(good.cell.df, ab.libs, by='CellID')
 
 # purge the old sce object
 sink(file="/dev/null")
-rm(list=c("sce", "clusters"))
-gc()
+rm(list=c("sce"))
+gc(reset=TRUE)
 sink(file=NULL)
 
 # estimate size factor for QC failed cells - if flag present
@@ -275,7 +306,7 @@ if(opt$outputqc){
   	clusters <- quickCluster(sce.fail, min.size=cluster.size,
   	                             subset.row=keep_genes,
 				     use.ranks=TRUE,
-                                     BPPARAM=mcparam,
+                                     #BPPARAM=mcparam,
 				     method="igraph"),
         error = function(c){
 	   message("Negative size factors in quick cluster, removing smallest 5% of QC-failed cells")
@@ -289,7 +320,7 @@ if(opt$outputqc){
 	   clusters <- quickCluster(sce.fail, min.size=cluster.size,
                                      subset.row=keep_genes,
                                      use.ranks=FALSE,
-                                     BPPARAM=mcparam,
+                                     #BPPARAM=mcparam,
                                      method="igraph")
            return(clusters)
 	   }, finally = {
@@ -305,7 +336,7 @@ if(opt$outputqc){
 	      clusters <- quickCluster(sce.fail, min.size=cluster.size,
                                      subset.row=keep_genes,
                                      use.ranks=TRUE,
-                                     BPPARAM=mcparam,
+                                     #BPPARAM=mcparam,
                                      method="igraph")
 	      }
 	   }
@@ -321,7 +352,7 @@ if(opt$outputqc){
                          max.cluster.size=max.size,
                          positive=TRUE,
 			 subset.row=keep_genes,
-                         BPPARAM=mcparam,
+                         #BPPARAM=mcparam,
                          assay.type='counts', clusters=clusters)
   
 	# the scater function is normalise, not normalize

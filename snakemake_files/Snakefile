@@ -57,7 +57,7 @@ rule all:
             expand(BASE_DIR + "quant.dir/{sample}_cells.txt", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "reports/{sample}_emptyDrops.pdf", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "reports/{sample}_QC.pdf", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
-            expand(BASE_DIR + "reports/{sample}_demux_QC.pdf", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
+#            expand(BASE_DIR + "reports/{sample}_demux_QC.pdf", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             BASE_DIR + "SCE/Covid_SCE.RDS",
             expand(BASE_DIR + "SCE/Covid_SCE-{sample}_Abs.RDS", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])),
             expand(BASE_DIR + "genotypes/cellSNP/{sample}.vcf.gz", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
@@ -260,21 +260,21 @@ rule run_singlecell_qc:
 #############################################################################
 # Demutliplexing QC
 #############################################################################
-rule run_demux_qc:
-    """
-    Run single-cell CITE-seq gene expression through standard QC - per sample
-    """
-    input:
-        barcodes=BASE_DIR + "quant.dir/{sample}_cells.txt",
-        whitelist=BASE_DIR + "QC/{sample}_barcode-whitelist.txt",
-        matrix=BASE_DIR + "cellranger_output/{sample}_CITE/outs/raw_feature_bc_matrix/matrix.mtx.gz",
-        donorIDs=BASE_DIR + "demultiplexed/vartrix_vireo/{sample}/donor_ids.tsv"
-    params:
-        qc_demux=config['QC']['qc_demux']
-    output:
-        plots=BASE_DIR + "reports/{sample}_demux_QC.pdf"
-    shell:
-        "singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.qc_demux} --matrix {input.matrix} --barcodes {input.barcodes} --whitelist {input.whitelist} --donorIDs {input.donorIDs} --plots {output.plots}"
+#rule run_demux_qc:
+#    """
+#    Run single-cell CITE-seq gene expression through standard QC - per sample
+#    """
+#    input:
+#        barcodes=BASE_DIR + "quant.dir/{sample}_cells.txt",
+#        whitelist=BASE_DIR + "QC/{sample}_barcode-whitelist.txt",
+#        matrix=BASE_DIR + "cellranger_output/{sample}_CITE/outs/raw_feature_bc_matrix/matrix.mtx.gz",
+#        donorIDs=BASE_DIR + "demultiplexed/vartrix_vireo/{sample}/donor_ids.tsv"
+#    params:
+#        qc_demux=config['QC']['qc_demux']
+#    output:
+#        plots=BASE_DIR + "reports/{sample}_demux_QC.pdf"
+#    shell:
+#        "singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.qc_demux} --matrix {input.matrix} --barcodes {input.barcodes} --whitelist {input.whitelist} --donorIDs {input.donorIDs} --plots {output.plots}"
 
 #############################################################################
 # Single-cell normalisation with deconvolution size factors

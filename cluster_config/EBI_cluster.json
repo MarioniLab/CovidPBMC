@@ -57,8 +57,8 @@
     {
         "nCPUs"      : 1,
         "threads"    : 12000,
-        "memory"     : 48000,
-        "resources"  : "\"select[mem>48000] rusage[mem=32000]\""
+        "memory"     : 180000,
+        "resources"  : "\"select[mem>160000] rusage[mem=160000]\""
     },
     "demultiplex_cells_vartrix":
     {
