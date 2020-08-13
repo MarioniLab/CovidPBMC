@@ -17,7 +17,7 @@ parser <- add_option(parser, c("-s", "--sparsitythreshold"), type="double", defa
 parser <- add_option(parser, c("-u", "--umithreshold"), type="integer", default=1000, 
 		     help="UMI threshold [default %default]",
 		     metavar="number")
-parser <- add_option(parser, c("-m", "--mtthreshold"), type="integer", default=2, 
+parser <- add_option(parser, c("-m", "--mtthreshold"), type="double", default=0.07, 
 		     help="MAD threshold for mitochondria [default %default]",
 		     metavar="number")
 parser <- add_option(parser, c("-l", "--logs"), type="character", 
@@ -138,7 +138,7 @@ mt.dist <- ggplot(qc, aes(x=mtrel,y=sum, color=is.mt.fail)) +
     ggtitle(paste0("Thresholded at ",opt$mtthreshold))
 
 # ---- Define QC_Pass ----
-keep <- !(qc$is.mt.fail | qc$is.lib.fail | qc$tnrd.outlier)
+keep <- !(qc$is.mt.fail | qc$is.lib.fail | qc$trnd.outlier)
 
 # ---- Difference between QC_Pass and QC_Fail ----
 
