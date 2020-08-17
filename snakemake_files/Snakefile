@@ -57,9 +57,9 @@ rule all:
             expand(BASE_DIR + "quant.dir/{sample}_cells.txt", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "reports/{sample}_emptyDrops.pdf", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "reports/{sample}_QC.pdf", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
-#            expand(BASE_DIR + "reports/{sample}_demux_QC.pdf", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
+            expand(BASE_DIR + "reports/{sample}_demux_QC.pdf", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             BASE_DIR + "SCE/Covid_SCE.RDS",
-            expand(BASE_DIR + "SCE/Covid_SCE-{sample}_Abs.RDS", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])),
+            expand(BASE_DIR + "SCE/Covid_SCE-{sample}_Ab.RDS", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])),
             expand(BASE_DIR + "genotypes/cellSNP/{sample}.vcf.gz", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "genotypes/vartrix/{sample}_alt_matrix.mtx", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "genotypes/vartrix/{sample}_ref_matrix.mtx", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
@@ -261,21 +261,21 @@ rule run_singlecell_qc:
 #############################################################################
 # Demutliplexing QC
 #############################################################################
-#rule run_demux_qc:
-#    """
-#    Run single-cell CITE-seq gene expression through standard QC - per sample
-#    """
-#    input:
-#        barcodes=BASE_DIR + "quant.dir/{sample}_cells.txt",
-#        whitelist=BASE_DIR + "QC/{sample}_barcode-whitelist.txt",
-#        matrix=BASE_DIR + "cellranger_output/{sample}_CITE/outs/raw_feature_bc_matrix/matrix.mtx.gz",
-#        donorIDs=BASE_DIR + "demultiplexed/vartrix_vireo/{sample}/donor_ids.tsv"
-#    params:
-#        qc_demux=config['QC']['qc_demux']
-#    output:
-#        plots=BASE_DIR + "reports/{sample}_demux_QC.pdf"
-#    shell:
-#        "singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.qc_demux} --matrix {input.matrix} --barcodes {input.barcodes} --whitelist {input.whitelist} --donorIDs {input.donorIDs} --plots {output.plots}"
+rule run_demux_qc:
+    """
+    Run single-cell CITE-seq gene expression through standard QC - per sample
+    """
+    input:
+        barcodes=BASE_DIR + "quant.dir/{sample}_cells.txt",
+        whitelist=BASE_DIR + "QC/{sample}_barcode-whitelist.txt",
+        matrix=BASE_DIR + "cellranger_output/{sample}_CITE/outs/raw_feature_bc_matrix/matrix.mtx.gz",
+        donorIDs=BASE_DIR + "demultiplexed/vartrix_vireo/{sample}/donor_ids.tsv"
+    params:
+        qc_demux=config['QC']['qc_demux']
+    output:
+        plots=BASE_DIR + "reports/{sample}_demux_QC.pdf"
+    shell:
+        "singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.qc_demux} --matrix {input.matrix} --barcodes {input.barcodes} --whitelist {input.whitelist} --donorIDs {input.donorIDs} --plots {output.plots}"
 
 #############################################################################
 # Single-cell normalisation with deconvolution size factors
@@ -299,7 +299,7 @@ rule normalise_gex:
         join_whitelist=lambda wildcards, input: ",".join(input.barcode_whitelist)
     output:
         sce=BASE_DIR + "SCE/Covid_SCE.RDS",
-        abs_sce=expand(BASE_DIR + "SCE/Covid_SCE-{sample}_Abs.RDS", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])),
+        abs_sce=expand(BASE_DIR + "SCE/Covid_SCE-{sample}_Ab.RDS", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])),
         sizefactors=BASE_DIR + "SCE/Covid_SumFactors.tsv",
         plots=BASE_DIR + "reports/Covid_norm.pdf"
     shell:
@@ -370,18 +370,18 @@ rule extract_adt:
     """
 
     input:
-        in_sce=expand(BASE_DIR + "SCE/Covid_SCE-{sample}_Abs.RDS", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])),
-        donor_files=expand(BASE_DIR + "demultiplexed/cellSNP_vireo/{sample}/donor_ids.tsv", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]))
+        in_sce=BASE_DIR + "SCE/Covid_SCE-{sample}_Ab.RDS",
+        donor_files=BASE_DIR + "demultiplexed/cellSNP_vireo/{sample}/donor_ids.tsv"
     params:
-        sce_list=lambda wildcards, input: ",".join(input.in_sce),
-        donor_list=lambda wildcards, input: ",".join(input.donor_files),
+        #sce_list=lambda wildcards, input: ",".join(input.in_sce),
+        #donor_list=lambda wildcards, input: ",".join(input.donor_files),
         extract_rscript=config['MOFA']['extract_rscript'],
         out_prefix=BASE_DIR + "MOFA/Covid_ADT"
     output:
         #long_out=BASE_DIR + "MOFA/Covid_ADT_longCPM.txt.gz", # how can I make this an output that will be recognised by snakemake as well?
         wide_out=BASE_DIR + "MOFA/Covid_ADT_{sample}_cpm.txt.gz"
     shell:
-        """ singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.extract_rscript} --SCElist {params.sce_list} --DonorList {params.donor_list} --output {params.out_prefix} """
+        """ singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.extract_rscript} --SCElist {input.in_sce} --DonorList {input.donor_files} --output {params.out_prefix} """
 
 ###############################################################################
 # Run multi-group MOFA on just the ADT libraries
@@ -401,11 +401,12 @@ rule adt_mofa_multigroup:
         cpm_list=lambda wildcards, input: ",".join(input.in_cpm),
         donor_list=lambda wildcards, input: ",".join(input.donor_files),
         log=BASE_DIR + "logs/MOFA_multi-group_ADT.log",
-        out_prefix=BASE_DIR + "MOFA/Covid_ADT"
+        out_prefix=BASE_DIR + "MOFA/Covid_ADT",
+        threads=12
     output:
         mofa_out=BASE_DIR + "MOFA/Covid_ADT_MOFA.hdf5"
     shell:
-        """ singularity exec {config[singularity][preamble]} {config[singularity][img]} python {params.mofa_train_python} --counts-list {params.cpm_list} --donor-list {params.donor_list} --factors {params.n_factors} --runmode {params.runmode} --MOFAoutput {output.mofa_out} --output-prefix {params.out_prefix} --log {params.log} """
+        """ singularity exec {config[singularity][preamble]} {config[singularity][img]} python {params.mofa_train_python} --counts-list {params.cpm_list} --donor-list {params.donor_list} --factors {params.n_factors} --runmode {params.runmode} --MOFAoutput {output.mofa_out} --output-prefix {params.out_prefix} --log {params.log} --threads {params.threads}"""
 
 ###############################################################################
 # Extract unmapped reads for each input single-cell sample
