@@ -87,7 +87,7 @@ for(x in seq_along(levels(samp.names))){
       write.table(x.cpm, file=x.ofile, quote=FALSE, row.names=FALSE, sep="\t")
       close(x.ofile)
       
-      print(head(x.cpm[, c((ncol(x.cpm)-10):ncol(x.cpm))]))
+      #print(head(x.cpm[, c((ncol(x.cpm)-10):ncol(x.cpm))]))
       x.melt <- melt(x.cpm, id.vars="ADT")
       x.melt$group <- samp.x
       x.melt$view <- "ADT"
@@ -101,9 +101,9 @@ sink(file=NULL)
 
 # make a list of matrices
 # and a vector group inclusion
-adt.mat <- do.call(rbind, cpm.list)
-message(paste0("Concatenated ADT matrix contains: ", length(unique(adt.mat$variable)), " single-cells"))
+#adt.mat <- do.call(rbind, cpm.list)
+#message(paste0("Concatenated ADT matrix contains: ", length(unique(adt.mat$variable)), " single-cells"))
 
-long.ofile <- gzfile(paste0(opt$output, "_longCPM.txt.gz"), "w")
-write.table(adt.mat, file=long.ofile, sep="\t", quote=FALSE, row.names=FALSE)
-close(long.ofile)
+#long.ofile <- gzfile(paste0(opt$output, "_longCPM.txt.gz"), "w")
+#write.table(adt.mat, file=long.ofile, sep="\t", quote=FALSE, row.names=FALSE)
+#close(long.ofile)
