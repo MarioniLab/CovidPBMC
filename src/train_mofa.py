@@ -47,6 +47,10 @@ parser.add_argument("--output-prefix", dest="out_prefix", type=str,
 parser.add_argument("--log", dest="logfile", type=str,
                     help="Logging file destination", default=sys.stdout)
 
+parser.add_argument("--threads", dest="use_threads", type=int,
+                    default=1,
+                    help="The number of threads to use for parallelised MOFA")
+
 args = parser.parse_args()
 
 if type(args.logfile) == str:
@@ -54,6 +58,9 @@ if type(args.logfile) == str:
                         filename=args.logfile)
 else:
     logging.basicConfig(level=logging.INFO)
+
+logging("Setting up numpy multi-threading. Using {} threads".format(args.use_threads))
+os.environ['OPENBLAS_NUM_THREADS'] = str(args.use_threads)
 
 logging.info("Reading in ADT counts matrices")
 
@@ -135,7 +142,7 @@ mofa_ent.set_train_options(
     #drop_factor_threshold = -1,
     startELBO = 1, 
     freqELBO = 1, 
-    dropR2 = 0.001, 
+    dropR2 = 0.0000001, 
     gpu_mode = False,
     verbose = False,
     seed = 42
