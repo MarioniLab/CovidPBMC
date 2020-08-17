@@ -383,7 +383,8 @@ if(opt$outputqc){
 	fail.ab.cell.df <- all.ab.cell.df[all.ab.cell.df$QC.Status %in% c("Fail"), ]
 	out.cell.df <- do.call(rbind.data.frame, list("pass"=good.ab.cell.df, "fail"=fail.ab.cell.df))
 } else{
-    out.cell.df <- good.cell.df
+    out.cell.df <- merge(good.cell.df, ab.libs, by='CellID')
+    out.cell.df$QC.Status <- "Pass"
 }
 
 # what plots do we want to generate? Distributions of size factors with and without QC'd cells?
