@@ -42,7 +42,7 @@ QC:
 Norm:
     gene_sparse: 0.95 # the percentages of 0's to tolerate per gene prior to size factor estimation
     norm_rscript: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/CovidPBMC/src/norm_data.R"
-    qc_flag: "--outputqc"
+    qc_flag: "" # this can be set as "--outputqc" but uses a lot of memory for large data sets, i.e. > 100K cells
     positive_factors: "" # force size factors to be positive
 
 Doublets:

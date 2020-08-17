@@ -57,8 +57,8 @@
     {
         "nCPUs"      : 1,
         "threads"    : 12000,
-        "memory"     : 180000,
-        "resources"  : "\"select[mem>160000] rusage[mem=160000]\""
+        "memory"     : 220000,
+        "resources"  : "\"select[mem>190000] rusage[mem=190000]\""
     },
     "demultiplex_cells_vartrix":
     {
@@ -80,5 +80,12 @@
         "threads"    : 12000,
         "memory"     : 48000,
         "resources"  : "\"select[mem>48000] rusage[mem=32000]\""
+    },
+    "adt_mofa_multigroup":
+    {
+        "nCPUs"      : 12,
+        "threads"    : 12000,
+        "memory"     : 38000,
+        "resources"  : "\"select[mem>36000] rusage[mem=36000]\""
     }
 }
