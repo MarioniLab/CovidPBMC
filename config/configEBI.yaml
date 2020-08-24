@@ -52,6 +52,9 @@ Doublets:
 ADT:
     qc_rscript: ""
 
+Denoise:
+    denoise_rscript: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/CovidPBMC/src/bgshift_cpm.R"
+
 MOFA:
     extract_rscript: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/CovidPBMC/src/extract_counts.R"
     factors: 50

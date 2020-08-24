@@ -51,6 +51,8 @@ localrules: all
 #############################################################################
 rule all:
      input: expand(BASE_DIR + "cellranger_output/{sample}_CITE/outs/raw_feature_bc_matrix/matrix.mtx.gz", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]), # just check for files used in latter rules
+            expand(BASE_DIR + "cellranger_output/{sample}_CITE/outs/raw_feature_bc_matrix/features.tsv.gz", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]), # just check for files used in latter rules
+            expand(BASE_DIR + "cellranger_output/{sample}_CITE/outs/raw_feature_bc_matrix/barcodes.tsv.gz", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]), # just check for files used in latter rules
             expand(BASE_DIR + "cellranger_output/{sample}_CITE/outs/possorted_genome_bam.bam", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "cellranger_output/{sample}_TCR", sample=[TCR_REGEX.search(to).group(1) for to in TCR_SAMPLES]),
             expand(BASE_DIR + "cellranger_output/{sample}_BCR", sample=[BCR_REGEX.search(bo).group(1) for bo in BCR_SAMPLES]),
@@ -70,6 +72,7 @@ rule all:
 #            BASE_DIR + "reports/ADT-QC.pdf",
 #            BASE_DIR + "SCE/Covid_SCE_ABS.RDS",
             expand(BASE_DIR + "MOFA/Covid_ADT_{sample}_cpm.txt.gz", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
+            expand(BASE_DIR + "Denoised/COVID_ADT_{sample}_bgCPM.txt.gz", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
 #	    BASE_DIR + "MOFA/Covid_ADT_longCPM.txt.gz",
             BASE_DIR + "MOFA/Covid_ADT_MOFA.hdf5"
 #            expand(BASE_DIR + "unmapped_bams/{sample}_unmapped.bam", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
@@ -97,6 +100,8 @@ rule run_CITE_cellranger:
     output:
         #outdir=directory(BASE_DIR + "cellranger_output/{sample}_CITE"),
         matrix=BASE_DIR + "cellranger_output/{sample}_CITE/outs/raw_feature_bc_matrix/matrix.mtx.gz", # both of these outputs are for pipeline tracking, they aren't explicitly used in the shell command below
+        feature=BASE_DIR + "cellranger_output/{sample}_CITE/outs/raw_feature_bc_matrix/features.tsv.gz", # both of these outputs are for pipeline tracking, they aren't explicitly used in the shell command below
+        barcode=BASE_DIR + "cellranger_output/{sample}_CITE/outs/raw_feature_bc_matrix/barcodes.tsv.gz", # both of these outputs are for pipeline tracking, they aren't explicitly used in the shell command below
         bam=BASE_DIR + "cellranger_output/{sample}_CITE/outs/possorted_genome_bam.bam"
     log:
         "logs/cellranger_{sample}_CITE.log"
@@ -382,6 +387,29 @@ rule extract_adt:
         wide_out=BASE_DIR + "MOFA/Covid_ADT_{sample}_cpm.txt.gz"
     shell:
         """ singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.extract_rscript} --SCElist {input.in_sce} --DonorList {input.donor_files} --output {params.out_prefix} """
+
+###############################################################################
+# Subtract background signal estimated from empty droplets
+###############################################################################
+rule remove_background:
+    """
+    Remove background signal from ADT libraries by estimating Ab background signal from empty droplets - determined from GEX libraries
+    """
+
+    input:
+        matrix_in=BASE_DIR + "cellranger_output/{sample}_CITE/outs/raw_feature_bc_matrix/matrix.mtx.gz",
+        feature_in=BASE_DIR + "cellranger_output/{sample}_CITE/outs/raw_feature_bc_matrix/features.tsv.gz",
+        barcode_in=BASE_DIR + "cellranger_output/{sample}_CITE/outs/raw_feature_bc_matrix/barcodes.tsv.gz",
+        pass_in=BASE_DIR + "QC/{sample}_barcode-whitelist.txt"
+    params:
+        denoise_rscript=config['Denoise']['denoise_rscript'],
+        out_dir=BASE_DIR + "Denoised",
+        plot_dir=BASE_DIR + "reports"
+    output:
+        outfile=BASE_DIR + "Denoised/COVID_ADT_{sample}_bgCPM.txt.gz"
+    shell:
+        """ singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.denoise_rscript} --matrixlist {input.matrix_in} --featurelist {input.feature_in} --barcodeslist {input.barcode_in} --whitelists {input.pass_in} --output {params.out_dir} --plots {params.plot_dir}"""
+
 
 ###############################################################################
 # Run multi-group MOFA on just the ADT libraries

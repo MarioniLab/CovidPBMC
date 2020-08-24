@@ -59,7 +59,7 @@ if type(args.logfile) == str:
 else:
     logging.basicConfig(level=logging.INFO)
 
-logging("Setting up numpy multi-threading. Using {} threads".format(args.use_threads))
+logging.info("Setting up numpy multi-threading. Using {} threads".format(args.use_threads))
 os.environ['OPENBLAS_NUM_THREADS'] = str(args.use_threads)
 
 logging.info("Reading in ADT counts matrices")
