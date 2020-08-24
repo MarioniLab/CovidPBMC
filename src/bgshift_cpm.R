@@ -31,7 +31,7 @@ opt <- parse_args(parser)
 library(Matrix)
 library(mclust)
 library(ggplot2)
-library(ggsci)
+#library(ggsci)
 library(ggthemes)
 library(reshape2)
 
@@ -107,7 +107,7 @@ for(x in seq_along(levels(samp.names))){
 
     print(dim(x.adt))
 
-    pdf(paste0(opt$plots, samp.x, "-ADT_logCPM_hist-badcells.pdf"), height=3.95, width=5.15, useDingbats=FALSE)
+    pdf(paste(opt$plots, paste0(samp.x, "-ADT_logCPM_hist-badcells.pdf"), sep="/"), height=3.95, width=5.15, useDingbats=FALSE)
     hist(apply(x.adt, 2, mean), 100, main="ADT logCPM distribution for empty/bad cells")
     dev.off()
 
@@ -154,7 +154,7 @@ for(x in seq_along(levels(samp.names))){
     # do I need to fit a separate model to each protein, rather than each cell??
     x.plot <- ggplot(melt(x.means), aes(x=value, fill=variable)) +
        geom_histogram(bins=100) +
-       scale_fill_npg() +
+       scale_fill_colorblind() +
        facet_wrap(~variable, ncol=1)
     ggsave(x.plot, filename=paste0(opt$plots, "/", samp.x, "-ADT_logCPM_hist-badcells.pdf"),
            height=4.95, width=4.95, useDingbats=FALSE)

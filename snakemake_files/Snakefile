@@ -72,7 +72,7 @@ rule all:
 #            BASE_DIR + "reports/ADT-QC.pdf",
 #            BASE_DIR + "SCE/Covid_SCE_ABS.RDS",
             expand(BASE_DIR + "MOFA/Covid_ADT_{sample}_cpm.txt.gz", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
-            expand(BASE_DIR + "Denoised/COVID_ADT_{sample}_bgCPM.txt.gz", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
+            expand(BASE_DIR + "Denoised/Covid_ADT_{sample}_bgCPM.txt.gz", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
 #	    BASE_DIR + "MOFA/Covid_ADT_longCPM.txt.gz",
             BASE_DIR + "MOFA/Covid_ADT_MOFA.hdf5"
 #            expand(BASE_DIR + "unmapped_bams/{sample}_unmapped.bam", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
@@ -406,7 +406,7 @@ rule remove_background:
         out_dir=BASE_DIR + "Denoised",
         plot_dir=BASE_DIR + "reports"
     output:
-        outfile=BASE_DIR + "Denoised/COVID_ADT_{sample}_bgCPM.txt.gz"
+        outfile=BASE_DIR + "Denoised/Covid_ADT_{sample}_bgCPM.txt.gz"
     shell:
         """ singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.denoise_rscript} --matrixlist {input.matrix_in} --featurelist {input.feature_in} --barcodeslist {input.barcode_in} --whitelists {input.pass_in} --output {params.out_dir} --plots {params.plot_dir}"""
 

@@ -81,6 +81,11 @@
         "memory"     : 48000,
         "resources"  : "\"select[mem>48000] rusage[mem=32000]\""
     },
+    "remove_background":
+    {
+        "memory"     : 18000,
+        "resources"  : "\"select[mem>18000] rusage[mem=18000]\""
+    },
     "adt_mofa_multigroup":
     {
         "nCPUs"      : 12,
