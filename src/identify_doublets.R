@@ -14,6 +14,7 @@ parser <- add_option(parser, c("-p", "--plot"), type="character",
 		     help="Path to QC plots")
 opt <- parse_args(parser)
 
+
 # ---- Load Data ----
 library(ggplot2)
 library(cowplot)
@@ -34,7 +35,10 @@ ddata.df <- data.frame(do.call(rbind,ddata.list))
 
 message("Computing per-cluster and per-sample scores")
 # Log-Transform scores
-ddata.df$DbltScore[is.na(ddata.df$DbltSCore)] <- max(ddata.df$DbltScore)
+# I decided against setting known GT doublets to high scores
+# 1. This information should be captured independently when testing for percentage of GT doublets
+# 2. The downstream effect this has is very much dependent on the exact value that you choose to set this on
+#ddata.df$DbltScore[is.na(ddata.df$DbltScore)] <- quantile(ddata.df$DbltScore,.99, na.rm=TRUE)
 ddata.df$DbltScore <- log10(ddata.df$DbltScore+1)
 
 # Compute median scores per cluster and sample
@@ -64,8 +68,9 @@ message("Determining doublets")
 cluster.scores$ScoreOutlier <- scater::isOutlier(cluster.scores$Medscore,nmad=1.5,type="higher",log=FALSE)
 cluster.scores$ScoreIsDoublet <- cluster.scores$ScoreOutlier & cluster.scores$fracCells <= 0.07
 
+
 # Define doublets based on fraction of cells within a cluster that are genotype doublets
-cluster.scores$VireoOutlier <- cluster.scores$fracVireoDoublets > 0.5
+cluster.scores$VireoOutlier <- cluster.scores$fracVireoDoublets > 0.3
 cluster.scores$VireoIsDoublet <- cluster.scores$VireoOutlier & cluster.scores$fracCells <= 0.07
 
 
@@ -111,12 +116,6 @@ doublet_plots <- lapply(smps, function(nm) {
 })
 names(doublet_plots) <- smps
 p_umaps <- plot_grid(plotlist=doublet_plots)
-
-
-#########
-# Here will go the integration across datasets with identifying doublets that are guilty by association
-# with per-sample doublets
-#########
 
 
 #### All of the below is just to label how each doublet was identified to make some checks later, might rm all of the below eventually
