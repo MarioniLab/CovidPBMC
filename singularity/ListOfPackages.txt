@@ -23,6 +23,7 @@ irlba
 knitr
 Matrix
 MASS
+MOFA2
 limSolve
 mgcv
 mclust
