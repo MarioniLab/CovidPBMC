@@ -19,7 +19,7 @@ import re
 #############################################################################
 configfile: "CovidPBMC/config/configEBI.yaml"
 
-BASE_DIR = "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/"
+BASE_DIR = "/hps/research/sds/sds-marioni-cov/"
 
 workdir: BASE_DIR
 
@@ -70,16 +70,18 @@ rule all:
             expand(BASE_DIR + "doublet/scores/{sample}_doublet_data.csv", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             BASE_DIR + "doublet/doublets/Doublets.csv",
 #            BASE_DIR + "reports/ADT-QC.pdf",
-#            BASE_DIR + "SCE/Covid_SCE_ABS.RDS",
             expand(BASE_DIR + "MOFA/Covid_ADT_{sample}_cpm.txt.gz", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
             expand(BASE_DIR + "Denoised/Covid_ADT_{sample}_bgCPM.txt.gz", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
-#	    BASE_DIR + "MOFA/Covid_ADT_longCPM.txt.gz",
-            BASE_DIR + "MOFA/Covid_ADT_MOFA.hdf5"
-#            expand(BASE_DIR + "unmapped_bams/{sample}_unmapped.bam", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
-#            expand(BASE_DIR + "unmapped_bams/{sample}.fastq.gz", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]),
-#            expand(BASE_DIR + "fasta/{reference}.bwt", reference=VIRAL_REFERENCE),
-#            expand(BASE_DIR + "fasta/{reference}.fasta.fai", reference=VIRAL_REFERENCE),
-#            expand(BASE_DIR + "bam.dir/{sample}.{reference}.sam", sample=[CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES], reference=VIRAL_REFERENCE)
+            BASE_DIR + "MOFA/Covid_GEX.mtx",
+            BASE_DIR + "MOFA/Covid_GEX.id.tsv",
+            BASE_DIR + "MOFA/Covid_GEX.genes.tsv",
+            BASE_DIR + "MOFA/Covid_ADT.mtx",
+            BASE_DIR + "MOFA/Covid_ADT.id.tsv",
+            BASE_DIR + "MOFA/Covid_ADT.genes.tsv",
+            BASE_DIR + "MOFA/Covid_donors.tsv",
+            BASE_DIR + "MOFA/Covid_ADT_MOFA.hdf5",
+            BASE_DIR + "MOFA/Covid_denoisedADT_MOFA.hdf5",
+            BASE_DIR + "MOFA/Covid_Joint_MOFA.hdf5"
 
 #############################################################################
 # Run GEX & ADT Cell Ranger
@@ -233,13 +235,14 @@ rule demultiplex_cells_cellSNP:
     De-multiplex single-cells from genetically distinct donors using cellSNP+vireo
     """
     input:
-        vcf=BASE_DIR + "genotypes/cellSNP/{sample}.vcf.gz"
+        vcf=BASE_DIR + "genotypes/cellSNP/{sample}.vcf.gz",
+        donor=BASE_DIR + "genotypes/cellSNP/{sample}.nochr.vcf.gz"
     params:
         out_dir=directory(BASE_DIR + "demultiplexed/" + "cellSNP_vireo/" + "{sample}")
     output:
         outs=BASE_DIR + "demultiplexed/" + "cellSNP_vireo/" + "{sample}/donor_ids.tsv"
     shell:
-        "singularity exec {config[singularity][preamble]} {config[singularity][img]} vireo --cellData {input.vcf} --nDonor 4 --outDir {params.out_dir} --randSeed 42 --noPlot" 
+        "singularity exec {config[singularity][preamble]} {config[singularity][img]} vireo --cellData {input.vcf} -d {input.donor}  --genoTag=GT  --outDir {params.out_dir} --randSeed 42 --noPlot" 
 
 #############################################################################
 # Single-cell CITE-seq QC
@@ -337,7 +340,8 @@ rule run_doublet_id:
     Identify doublets based on the scores
     """
     input:
-        doublet_scores=expand(BASE_DIR + "doublet/scores/{sample}_doublet_data.csv", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]))
+        doublet_scores=expand(BASE_DIR + "doublet/scores/{sample}_doublet_data.csv", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])),
+        sce=BASE_DIR + "SCE/Covid_SCE.RDS",
     params:
         doub_id_rscript=config['Doublets']['doub_id_rscript'],
         join_scores=lambda wildcards, input: ",".join(input.doublet_scores)
@@ -345,7 +349,7 @@ rule run_doublet_id:
         out=BASE_DIR + "doublet/doublets/Doublets.csv",
         plots=directory(BASE_DIR + "doublet/plots/")
     shell:
-        "singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.doub_id_rscript} --doubletdata {params.join_scores} --plot {output.plots} --out {output.out}"
+        "singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.doub_id_rscript} --doubletdata {params.join_scores} --plot {output.plots} --out {output.out} --SCE {input.sce}"
 
 
 ###############################################################################
@@ -387,6 +391,28 @@ rule extract_adt:
         wide_out=BASE_DIR + "MOFA/Covid_ADT_{sample}_cpm.txt.gz"
     shell:
         """ singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.extract_rscript} --SCElist {input.in_sce} --DonorList {input.donor_files} --output {params.out_prefix} """
+
+###############################################################################
+# Extract GEX log counts
+###############################################################################
+rule extract_gex:
+    """
+    Extract GEX logcount matrices and melt into long format for input into MOFA. This also add group-wise information to run multi-group MOFA
+    """
+
+    input:
+        in_sce=BASE_DIR + "SCE/Covid_SCE.RDS",
+        doublets=BASE_DIR + "doublet/doublets/Doublets.csv"
+    params:
+        extract_rscript=config['MOFA']['gex_extract_rscript'],
+        out_prefix=BASE_DIR + "MOFA/Covid",
+        fdr=config['MOFA']['hvg_fdr']
+    output:
+        wide_out=BASE_DIR + "MOFA/Covid_GEX.mtx",
+        out_cell=BASE_DIR + "MOFA/Covid_GEX.id.tsv",
+        out_genes=BASE_DIR + "MOFA/Covid_GEX.genes.tsv"
+    shell:
+        """ singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.extract_rscript} --SCE {input.in_sce} --doublets {input.doublets} --threshold 100  --output {params.out_prefix} --hvgs --fdr {params.fdr} """
 
 ###############################################################################
 # Subtract background signal estimated from empty droplets
@@ -434,101 +460,102 @@ rule adt_mofa_multigroup:
     output:
         mofa_out=BASE_DIR + "MOFA/Covid_ADT_MOFA.hdf5"
     shell:
-        """ singularity exec {config[singularity][preamble]} {config[singularity][img]} python {params.mofa_train_python} --counts-list {params.cpm_list} --donor-list {params.donor_list} --factors {params.n_factors} --runmode {params.runmode} --MOFAoutput {output.mofa_out} --output-prefix {params.out_prefix} --log {params.log} --threads {params.threads}"""
+        """ singularity exec {config[singularity][preamble]} {config[singularity][img]} python {params.mofa_train_python} --counts-list {params.cpm_list} --donor-list {params.donor_list} --factors {params.n_factors} --runmode {params.runmode} --MOFAoutput {output.mofa_out} --output-prefix {params.out_prefix} --log {params.log} --threads {params.threads}  --omic 'ADT' """
 
 ###############################################################################
-# Extract unmapped reads for each input single-cell sample
+# Merge together donor files and trim doublets
 ###############################################################################
-rule extract_unmapped_reads:
+rule merge_donor_info:
     """
-    Extract un-mapped single-cell reads that are proper paired
-    """
-
-    input:
-        in_bam=BASE_DIR + "cellranger_output/{sample}_CITE/outs/possorted_genome_bam.bam"
-    output:
-        out_bam=BASE_DIR + "unmapped_bams/{sample}_unmapped.bam"
-    shell:
-        """samtools view -b -f 4 {input.in_bam} > {output.out_bam}; samtools index {output.out_bam}"""
-
-###############################################################################
-# Convert unmapped BAM file to FASTQ
-###############################################################################
-rule convert_bam2fastq:
-    """
-    Convert unmapped reads file to FASTQ - only keeping reads with error-corrected cell barcode and UMI
+    Merge together donor information and cut out doublets
     """
 
     input:
-        bam=BASE_DIR + "unmapped_bams/{sample}_unmapped.bam"
-    output:
-        fastq=BASE_DIR + "unmapped_bams/{sample}.fastq.gz"
+        donor_files=expand(BASE_DIR + "demultiplexed/cellSNP_vireo/{sample}/donor_ids.tsv", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])),
+        doublets=BASE_DIR + "doublet/doublets/Doublets.csv"
     params:
-        python_script=config['Conversion']['bam2fastq'],
-        log="logs/{sample}.bam2fastq.log"
+        merge_rscript=config['MOFA']['merge_donor_rscript'],
+        donor_list=lambda wildcards, input: ",".join(input.donor_files)
+    output:
+        merge_out=BASE_DIR + "MOFA/Covid_donors.tsv"
     shell:
-        """python3 {params.python_script} --bam {input.bam} --fastq {output.fastq} --log {params.log} """
+        """singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.merge_rscript} --donorList {params.donor_list} --doublets {input.doublets} --output {output.merge_out} """
 
 ###############################################################################
-# Create a FASTA index for the Viral FASTA sequences
+# Merge together denoised ADT CPM data - remove doublets
 ###############################################################################
-rule index_fasta_faidx:
+rule merge_denoise_adt:
     """
-    Index reference FASTA sequences with samtools
+    Merge together denoised ADT matrices and cut out doublets
     """
 
     input:
-        fasta=BASE_DIR + "fasta/{reference}.fasta"
-    output:
-        index=BASE_DIR + "fasta/{reference}.fasta.fai"
-    shell:
-        """samtools faidx {input.fasta} """
-
-###############################################################################
-# Create a BWA index for the Viral FASTA sequences
-###############################################################################
-rule index_fasta_bwa:
-    """
-    Index reference FASTA sequences with BWA 
-    """
-
-    input:
-        fasta=BASE_DIR + "fasta/{reference}.fasta"
-    output:
-        index=BASE_DIR + "fasta/{reference}.bwt"
+        matrix_files=expand(BASE_DIR + "Denoised/Covid_ADT_{sample}_bgCPM.txt.gz", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])),
+        doublets=BASE_DIR + "doublet/doublets/Doublets.csv"
     params:
-        prefix=BASE_DIR + "fasta/{reference}"
-
+        merge_rscript=config['MOFA']['merge_adt_rscript'],
+        matrix_list=lambda wildcards, input: ",".join(input.matrix_files),
+        out_prefix=BASE_DIR + "MOFA/Covid"
+    output:
+        merge_out=BASE_DIR + "MOFA/Covid_ADT.mtx",
+        out_cells=BASE_DIR + "MOFA/Covid_ADT.id.tsv",
+        out_genes=BASE_DIR + "MOFA/Covid_ADT.genes.tsv",
     shell:
-        """bwa index -p {params.prefix} {input.fasta} """
+        """singularity exec {config[singularity][preamble]} {config[singularity][img]} Rscript {params.merge_rscript} --matrixList {params.matrix_list} --doublets {input.doublets} --output {params.out_prefix} """
 
 ###############################################################################
-# Align reads to viral genomes with BWA-MEM
+# Run multi-group MOFA on just the denoise libraries
 ###############################################################################
-rule bwa_align:
+rule denoised_mofa_multigroup:
     """
-    Align unmapped single-cell RNA-sequencing reads to NCBI viral genomes using BWA-MEM
+    Run MOFA using each sequencing sample as a separate group - only use the ADT libraries
     """
 
     input:
-        fastq=BASE_DIR + "unmapped_bams/{sample}.fastq.gz",
-        viral_fasta=BASE_DIR + "fasta/{reference}.fasta",
-        faindex=BASE_DIR + "fasta/{reference}.fasta.fai",
-        bwa_index=BASE_DIR + "fasta/{reference}.bwt"
-    output:
-        sam=BASE_DIR + "bam.dir/{sample}.{reference}.sam"
+        in_cpm=expand(BASE_DIR + "Denoised/Covid_ADT_{sample}_bgCPM.txt.gz", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES])),
+        donor_files=expand(BASE_DIR + "demultiplexed/cellSNP_vireo/{sample}/donor_ids.tsv", sample=set([CITE_REGEX.search(ox).group(1) for ox in CITE_SAMPLES]))
     params:
-        ref_prefix=BASE_DIR + "fasta/{reference}",
-        threads=12,
-        seed_length=10,
-        gap_length=1500,
-        reseed=0.5,
-        multihit=100000000000,
-        match_score=8,
-        mis_penalty=1,
+        n_factors=config['MOFA']['factors'],
+        runmode=config['MOFA']['runmode'],
+        mofa_train_python=config['MOFA']['train_script'],
+        cpm_list=lambda wildcards, input: ",".join(input.in_cpm),
+        donor_list=lambda wildcards, input: ",".join(input.donor_files),
+        log=BASE_DIR + "logs/MOFA_multi-group_denoisedADT.log",
+        out_prefix=BASE_DIR + "MOFA/Covid_denoisedADT",
+        threads=12
+    output:
+        mofa_out=BASE_DIR + "MOFA/Covid_denoisedADT_MOFA.hdf5"
     shell:
-        """bwa mem -k {params.seed_length} -w {params.gap_length} -r {params.reseed} -c {params.multihit} -t {params.threads} -A {params.match_score} -B {params.mis_penalty} {params.ref_prefix} {input.fastq} > {output.sam}"""
+        """ singularity exec {config[singularity][preamble]} {config[singularity][img]} python {params.mofa_train_python} --counts-list {params.cpm_list} --donor-list {params.donor_list} --factors {params.n_factors} --runmode {params.runmode} --MOFAoutput {output.mofa_out} --output-prefix {params.out_prefix} --log {params.log} --threads {params.threads} --omic 'ADT' """
 
+###############################################################################
+# Run multi-group MOFA jointly on the GEX and ADT libraries
+###############################################################################
+rule joint_mofa_multigroup:
+    """
+    Run MOFA using each sequencing sample as a separate group on both GEX and ADT data
+    """
+
+    input:
+        in_cpm=BASE_DIR + "MOFA/Covid_ADT.mtx",
+        in_cpm_cells=BASE_DIR + "MOFA/Covid_ADT.id.tsv",
+        in_cpm_genes=BASE_DIR + "MOFA/Covid_ADT.genes.tsv",
+        in_gex=BASE_DIR + "MOFA/Covid_GEX.mtx",
+        in_gex_cells=BASE_DIR + "MOFA/Covid_GEX.id.tsv",
+        in_gex_genes=BASE_DIR + "MOFA/Covid_GEX.genes.tsv",
+        donor_file=BASE_DIR + "MOFA/Covid_donors.tsv"
+    params:
+        cpm_list=lambda wildcards, input: ",".join([input.in_cpm, input.in_gex]),
+        n_factors=config['MOFA']['factors'],
+        runmode=config['MOFA']['runmode'],
+        mofa_train_python=config['MOFA']['train_script'],
+        log=BASE_DIR + "logs/MOFA_joint.log",
+        out_prefix=BASE_DIR + "MOFA/Covid_Joint",
+        threads=24
+    output:
+        mofa_out=BASE_DIR + "MOFA/Covid_Joint_MOFA.hdf5"
+    shell:
+        """ singularity exec {config[singularity][preamble]} {config[singularity][img]} python {params.mofa_train_python} --counts-list {params.cpm_list} --donor-list {input.donor_file} --gex-rownames {input.in_gex_genes} --gex-colnames {input.in_gex_cells} --adt-rownames {input.in_cpm_genes} --adt-colnames {input.in_cpm_cells} --factors {params.n_factors} --runmode {params.runmode} --MOFAoutput {output.mofa_out} --omic 'joint' --group-column 'Sample' --output-prefix {params.out_prefix} --log {params.log} --threads {params.threads}"""
 
 #############################################################################
 # Run final file permission checks

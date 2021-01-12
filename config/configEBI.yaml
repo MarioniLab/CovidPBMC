@@ -1,31 +1,31 @@
 # Reference files
 base:
-    dir: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/"
+    dir: "/hps/research/sds/sds-marioni-cov/"
     run: "DATA"
 
 singularity:
-    img: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/singularity/CovidPBMC.sif"
-    preamble: " -B /hps/covid19_nobackup2/research/marioni/sds-marioni-cov "
+    img: "/hps/research/sds/sds-marioni-cov/singularity/CovidPBMC.sif"
+    preamble: " -B /hps/research/sds/sds-marioni-cov "
 
 hg38_SarsCov2:
     # the cellranger format file with human and Sars-CoV2 genome sequences and annotations
-    referenceFolder: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/genome_refs/hg38_SarsCov2"
-    fasta: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/genome_refs/hg38_SarsCov2/fasta/genome.fa"
+    referenceFolder: "/hps/research/sds/sds-marioni-cov/genome_refs/hg38_SarsCov2"
+    fasta: "/hps/research/sds/sds-marioni-cov/genome_refs/hg38_SarsCov2/fasta/genome.fa"
 
 hg38_vdj:
     # standard 10X Genomics pre-built Ig and TCR loci
-    referenceFolder: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/genome_refs/refdata-cellranger-vdj-GRCh38-alts-ensembl-3.1.0"
+    referenceFolder: "/hps/research/sds/sds-marioni-cov/genome_refs/refdata-cellranger-vdj-GRCh38-alts-ensembl-3.1.0"
 
 params:
-    featureReference: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/test_data/ref_files/vdj_v1_hs_pbmc2_5gex_protein_feature_ref.csv" # assumes this is the same across experiments
+    featureReference: "/hps/research/sds/sds-marioni-cov/test_data/ref_files/vdj_v1_hs_pbmc2_5gex_protein_feature_ref.csv" # assumes this is the same across experiments
 
 emptyDrops:
     umi_threshold: 100
     fdr_threshold: 0.001
-    emptydrops_rscript: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/CovidPBMC/src/call_cells.R"
+    emptydrops_rscript: "/hps/research/sds/sds-marioni-cov/CovidPBMC/src/call_cells.R"
 
 genotyper:
-    ref_vcf: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/genotypes/genomeProject/hg38/genome1K.phase3.SNP_AF5e2.chr1toX.withoutChr.vcf.gz" # input a reference VCF, e.g. 1K Genomes
+    ref_vcf: "/hps/research/sds/sds-marioni-cov/genotypes/genomeProject/hg38/genome1K.phase3.SNP_AF5e2.chr1toX.withoutChr.vcf.gz" # input a reference VCF, e.g. 1K Genomes
     min_MAF: 0.1
     min_Count: 20
 
@@ -36,36 +36,40 @@ QC:
     mt_thresh: 0.07 # this represents the maxium fraction of MT counts accepted
     umi_thresh: 1000 # the minimum number of detected UMIs per cell to keep
     sparsity: 0.99 # the percentage of 0's to tolerate per single-cell (sparsity)
-    qc_rscript: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/CovidPBMC/src/qc_cells.R"
-    qc_demux: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/CovidPBMC/src/qc_demux.R"
+    qc_rscript: "/hps/research/sds/sds-marioni-cov/CovidPBMC/src/qc_cells.R"
+    qc_demux: "/hps/research/sds/sds-marioni-cov/CovidPBMC/src/qc_demux.R"
 
 Norm:
     gene_sparse: 0.95 # the percentages of 0's to tolerate per gene prior to size factor estimation
-    norm_rscript: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/CovidPBMC/src/norm_data.R"
+    norm_rscript: "/hps/research/sds/sds-marioni-cov/CovidPBMC/src/norm_data.R"
     qc_flag: "" # this can be set as "--outputqc" but uses a lot of memory for large data sets, i.e. > 100K cells
     positive_factors: "" # force size factors to be positive
 
 Doublets:
-    doub_score_rscript: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/CovidPBMC/src/comp_doublet_scores.R"
-    doub_id_rscript: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/CovidPBMC/src/identify_doublets.R"
+    doub_score_rscript: "/hps/research/sds/sds-marioni-cov/CovidPBMC/src/comp_doublet_scores.R"
+    doub_id_rscript: "/hps/research/sds/sds-marioni-cov/CovidPBMC/src/identify_doublets.R"
 
 ADT:
     qc_rscript: ""
 
 Denoise:
-    denoise_rscript: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/CovidPBMC/src/bgshift_cpm.R"
+    denoise_rscript: "/hps/research/sds/sds-marioni-cov/CovidPBMC/src/bgshift_cpm.R"
 
 MOFA:
-    extract_rscript: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/CovidPBMC/src/extract_counts.R"
+    extract_rscript: "/hps/research/sds/sds-marioni-cov/CovidPBMC/src/extract_counts.R"
+    gex_extract_rscript: "/hps/research/sds/sds-marioni-cov/CovidPBMC/src/extract_gex.R"
+    hvg_fdr: 0.1
+    merge_donor_rscript: "/hps/research/sds/sds-marioni-cov/CovidPBMC/src/merge_donors.R"
+    merge_adt_rscript: "/hps/research/sds/sds-marioni-cov/CovidPBMC/src/merge_matrices.R"
     factors: 50
     runmode: medium
-    train_script: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/CovidPBMC/src/train_mofa.py"
+    train_script: "/hps/research/sds/sds-marioni-cov/CovidPBMC/src/train_mofa.py"
 
 FinalCheck:
-    permission_script: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/CovidPBMC/src/check_permissions.sh"
+    permission_script: "/hps/research/sds/sds-marioni-cov/CovidPBMC/src/check_permissions.sh"
 
 Conversion:
-    bam2fastq: "/hps/covid19_nobackup2/research/marioni/sds-marioni-cov/CovidPBMC/src/bam2fastq.py"
+    bam2fastq: "/hps/research/sds/sds-marioni-cov/CovidPBMC/src/bam2fastq.py"
 
 Reference:
     virus: "NCBI_virus,NCBI_SARS_COV2"
